@@ -6,5 +6,12 @@ __pycache__
 data_research_agent
 scripts
 .git
+*.db
 *.db-shm
 *.db-wal
+.env
+frontend/data/ev_stations.geojson
+deploy
+docker-compose.yml
+render.yaml
+*.md

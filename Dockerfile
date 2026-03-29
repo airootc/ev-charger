@@ -14,10 +14,10 @@ COPY frontend/ ./frontend/
 RUN find . -name "*.bak.*" -delete && \
     find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null; true
 
-EXPOSE 8000
+EXPOSE 10000
 
-CMD ["gunicorn", "api_server.server:app", \
-     "-k", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "1", \
-     "--timeout", "120"]
+CMD gunicorn api_server.server:app \
+    -k uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:${PORT:-10000} \
+    --workers 1 \
+    --timeout 180
