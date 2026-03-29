@@ -110,8 +110,18 @@ async def block_data_access(path: str):
     )
 
 
-# Serve frontend static files (but NOT the data/ subdirectory)
+# Serve admin panel
 _frontend_dir = Path(settings.FRONTEND_DIR)
+
+@app.get("/admin")
+async def serve_admin():
+    admin_path = _frontend_dir / "admin.html"
+    if admin_path.exists():
+        return FileResponse(admin_path)
+    return JSONResponse({"error": "Admin panel not found"}, status_code=404)
+
+
+# Serve frontend static files (but NOT the data/ subdirectory)
 if _frontend_dir.exists():
     # Serve index.html for root
     @app.get("/")

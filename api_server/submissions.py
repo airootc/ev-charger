@@ -93,13 +93,32 @@ async def submit_station(submission: StationSubmission):
 # ── Admin Endpoints ──
 
 @router.get("/admin/submissions", dependencies=[Depends(require_admin)])
-async def list_submissions():
-    """List all pending station submissions. Requires admin token."""
+async def list_submissions(status: str = "pending"):
+    """List station submissions filtered by status. Requires admin token.
+
+    Query params:
+        status: 'pending' (default), 'approved', 'rejected', or 'all'
+    """
     with db.get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM station_submissions WHERE status = 'pending' ORDER BY created_at DESC"
-        ).fetchall()
-    return {"submissions": [dict(r) for r in rows]}
+        if status == "all":
+            rows = conn.execute(
+                "SELECT * FROM station_submissions ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM station_submissions WHERE status = ? ORDER BY created_at DESC",
+                (status,),
+            ).fetchall()
+
+        # Always fetch counts for the dashboard
+        counts = {}
+        for s in ("pending", "approved", "rejected"):
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM station_submissions WHERE status = ?", (s,)
+            ).fetchone()
+            counts[s] = row["cnt"] if row else 0
+
+    return {"submissions": [dict(r) for r in rows], "counts": counts}
 
 
 @router.post("/admin/submissions/{submission_id}/approve", dependencies=[Depends(require_admin)])

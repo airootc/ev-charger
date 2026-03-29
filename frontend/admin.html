@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Charger Admin Panel</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    background: #0d0d0d;
+    color: #e0e0e0;
+    min-height: 100vh;
+  }
+
+  /* Login screen */
+  .login-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .login-box {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 40px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+  }
+  .login-box h1 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+  .login-box p {
+    color: #888;
+    margin-bottom: 24px;
+    font-size: 0.9rem;
+  }
+  .login-box input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #0d0d0d;
+    color: #e0e0e0;
+    font-size: 1rem;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .login-box input:focus { border-color: #00C853; }
+  .login-box button {
+    width: 100%;
+    padding: 12px;
+    background: #00C853;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .login-box button:hover { background: #00e676; }
+  .login-error {
+    color: #e74c3c;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    display: none;
+  }
+
+  /* Dashboard */
+  .dashboard { display: none; }
+  .dashboard.active { display: block; }
+  .login-container.hidden { display: none; }
+
+  header {
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 1.3rem;
+    color: #fff;
+  }
+  header h1 span { color: #00C853; }
+  .btn-logout {
+    padding: 8px 20px;
+    background: transparent;
+    color: #888;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+  .btn-logout:hover { color: #e74c3c; border-color: #e74c3c; }
+
+  /* Status counts */
+  .counts-bar {
+    display: flex;
+    gap: 16px;
+    padding: 20px 24px 0;
+    flex-wrap: wrap;
+  }
+  .count-card {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px 24px;
+    min-width: 140px;
+    text-align: center;
+  }
+  .count-card .count-num {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .count-card .count-label {
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+  .count-card.pending .count-num { color: #f39c12; }
+  .count-card.approved .count-num { color: #00C853; }
+  .count-card.rejected .count-num { color: #e74c3c; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    padding: 20px 24px 0;
+  }
+  .tab-btn {
+    padding: 10px 24px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-bottom: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    border-radius: 8px 8px 0 0;
+    margin-right: -1px;
+  }
+  .tab-btn:hover { color: #ccc; }
+  .tab-btn.active {
+    background: #252525;
+    color: #fff;
+    border-color: #444;
+  }
+
+  /* Table container */
+  .table-wrap {
+    padding: 0 24px 24px;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 0 8px 8px 8px;
+    overflow: hidden;
+    font-size: 0.85rem;
+  }
+  thead th {
+    background: #252525;
+    color: #aaa;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    padding: 12px 14px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid #333;
+  }
+  tbody tr { border-bottom: 1px solid #222; transition: background 0.15s; }
+  tbody tr:nth-child(even) { background: #1e1e1e; }
+  tbody tr:hover { background: #292929; }
+  td {
+    padding: 10px 14px;
+    vertical-align: top;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  td.notes-cell {
+    max-width: 180px;
+  }
+
+  /* Action buttons */
+  .btn-approve, .btn-reject {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: opacity 0.2s;
+    margin-right: 4px;
+  }
+  .btn-approve { background: #00C853; color: #000; }
+  .btn-reject { background: #e74c3c; color: #fff; }
+  .btn-approve:hover, .btn-reject:hover { opacity: 0.85; }
+  .btn-approve:disabled, .btn-reject:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge-pending { background: rgba(243,156,18,0.15); color: #f39c12; }
+  .badge-approved { background: rgba(0,200,83,0.15); color: #00C853; }
+  .badge-rejected { background: rgba(231,76,60,0.15); color: #e74c3c; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 14px 24px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 500;
+    z-index: 1000;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s ease;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: #00C853; color: #000; }
+  .toast.error { background: #e74c3c; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: #666;
+    font-size: 0.95rem;
+  }
+
+  /* Loading */
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+  }
+
+  @media (max-width: 768px) {
+    header { padding: 12px 16px; }
+    .counts-bar { padding: 16px 16px 0; }
+    .tabs { padding: 16px 16px 0; }
+    .table-wrap { padding: 0 16px 16px; }
+    .count-card { min-width: 100px; padding: 12px 16px; }
+    .count-card .count-num { font-size: 1.5rem; }
+    td, thead th { padding: 8px 10px; font-size: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login-container" id="loginScreen">
+  <div class="login-box">
+    <h1>EV Charger Admin</h1>
+    <p>Enter your admin token to access the panel</p>
+    <input type="password" id="tokenInput" placeholder="Admin token" autocomplete="off">
+    <button onclick="login()">Login</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div class="dashboard" id="dashboard">
+  <header>
+    <h1><span>EV Charger</span> Admin Panel</h1>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </header>
+
+  <div class="counts-bar" id="countsBar">
+    <div class="count-card pending">
+      <div class="count-num" id="countPending">-</div>
+      <div class="count-label">Pending</div>
+    </div>
+    <div class="count-card approved">
+      <div class="count-num" id="countApproved">-</div>
+      <div class="count-label">Approved</div>
+    </div>
+    <div class="count-card rejected">
+      <div class="count-num" id="countRejected">-</div>
+      <div class="count-label">Rejected</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-status="pending" onclick="switchTab('pending', this)">Pending</button>
+    <button class="tab-btn" data-status="approved" onclick="switchTab('approved', this)">Approved</button>
+    <button class="tab-btn" data-status="rejected" onclick="switchTab('rejected', this)">Rejected</button>
+  </div>
+
+  <div class="table-wrap">
+    <div id="tableContainer">
+      <div class="loading">Loading submissions...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentStatus = 'pending';
+
+  // --- Auth ---
+  function getToken() {
+    return sessionStorage.getItem('admin_token');
+  }
+
+  function authHeaders() {
+    return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' };
+  }
+
+  async function login() {
+    const token = document.getElementById('tokenInput').value.trim();
+    const errEl = document.getElementById('loginError');
+    if (!token) {
+      errEl.textContent = 'Please enter a token.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/admin/submissions?status=pending', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (resp.ok) {
+        sessionStorage.setItem('admin_token', token);
+        showDashboard();
+      } else if (resp.status === 401 || resp.status === 403) {
+        errEl.textContent = 'Invalid admin token.';
+        errEl.style.display = 'block';
+      } else if (resp.status === 429) {
+        errEl.textContent = 'Too many attempts. Please wait and try again.';
+        errEl.style.display = 'block';
+      } else {
+        errEl.textContent = 'Server error (' + resp.status + '). Try again.';
+        errEl.style.display = 'block';
+      }
+    } catch (e) {
+      errEl.textContent = 'Network error. Is the server running?';
+      errEl.style.display = 'block';
+    }
+  }
+
+  function logout() {
+    sessionStorage.removeItem('admin_token');
+    document.getElementById('dashboard').classList.remove('active');
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('tokenInput').value = '';
+  }
+
+  function showDashboard() {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('dashboard').classList.add('active');
+    loadSubmissions();
+  }
+
+  // --- Data loading ---
+  async function loadSubmissions() {
+    const container = document.getElementById('tableContainer');
+    container.innerHTML = '<div class="loading">Loading submissions...</div>';
+
+    try {
+      const resp = await fetch('/api/admin/submissions?status=' + encodeURIComponent(currentStatus), {
+        headers: authHeaders()
+      });
+      if (resp.status === 401 || resp.status === 403) {
+        logout();
+        return;
+      }
+      const data = await resp.json();
+      const subs = data.submissions || [];
+      const counts = data.counts || {};
+
+      document.getElementById('countPending').textContent = counts.pending ?? '-';
+      document.getElementById('countApproved').textContent = counts.approved ?? '-';
+      document.getElementById('countRejected').textContent = counts.rejected ?? '-';
+
+      if (subs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No ' + currentStatus + ' submissions found.</div>';
+        return;
+      }
+
+      let html = '<table><thead><tr>' +
+        '<th>Station Name</th><th>Lat</th><th>Lng</th><th>Address</th>' +
+        '<th>Connector</th><th>Network</th><th>Ports</th>' +
+        '<th>Email</th><th>Notes</th><th>Submitted</th><th>Status</th>';
+      if (currentStatus === 'pending') html += '<th>Actions</th>';
+      html += '</tr></thead><tbody>';
+
+      for (const s of subs) {
+        const date = s.created_at ? new Date(s.created_at).toLocaleDateString() : '-';
+        const badgeClass = 'badge-' + s.status;
+        html += '<tr id="row-' + s.id + '">' +
+          '<td title="' + esc(s.station_name) + '">' + esc(s.station_name) + '</td>' +
+          '<td>' + (s.latitude != null ? s.latitude.toFixed(4) : '-') + '</td>' +
+          '<td>' + (s.longitude != null ? s.longitude.toFixed(4) : '-') + '</td>' +
+          '<td title="' + esc(s.address) + '">' + esc(s.address) + '</td>' +
+          '<td>' + esc(s.connector_type) + '</td>' +
+          '<td>' + esc(s.network) + '</td>' +
+          '<td>' + (s.num_ports ?? '-') + '</td>' +
+          '<td>' + esc(s.submitter_email) + '</td>' +
+          '<td class="notes-cell" title="' + esc(s.notes) + '">' + esc(s.notes) + '</td>' +
+          '<td>' + date + '</td>' +
+          '<td><span class="badge ' + badgeClass + '">' + s.status + '</span></td>';
+        if (currentStatus === 'pending') {
+          html += '<td>' +
+            '<button class="btn-approve" onclick="reviewSubmission(\'' + s.id + '\', \'approve\', this)">Approve</button>' +
+            '<button class="btn-reject" onclick="reviewSubmission(\'' + s.id + '\', \'reject\', this)">Reject</button>' +
+            '</td>';
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state">Failed to load submissions. Please try again.</div>';
+    }
+  }
+
+  // --- Actions ---
+  async function reviewSubmission(id, action, btn) {
+    const row = document.getElementById('row-' + id);
+    const buttons = row ? row.querySelectorAll('button') : [];
+    buttons.forEach(b => b.disabled = true);
+
+    try {
+      const resp = await fetch('/api/admin/submissions/' + encodeURIComponent(id) + '/' + action, {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (resp.status === 401 || resp.status === 403) {
+        logout();
+        return;
+      }
+      const data = await resp.json();
+      if (resp.ok) {
+        showToast('Submission ' + action + 'd successfully!', 'success');
+        loadSubmissions();
+      } else {
+        showToast(data.detail || 'Action failed.', 'error');
+        buttons.forEach(b => b.disabled = false);
+      }
+    } catch (e) {
+      showToast('Network error. Try again.', 'error');
+      buttons.forEach(b => b.disabled = false);
+    }
+  }
+
+  // --- Tabs ---
+  function switchTab(status, el) {
+    currentStatus = status;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    loadSubmissions();
+  }
+
+  // --- Helpers ---
+  function esc(str) {
+    if (str == null) return '-';
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+  }
+
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + type + ' show';
+    setTimeout(() => { t.classList.remove('show'); }, 3000);
+  }
+
+  // --- Init ---
+  document.getElementById('tokenInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') login();
+  });
+
+  if (getToken()) {
+    showDashboard();
+  }
+</script>
+</body>
+</html>
