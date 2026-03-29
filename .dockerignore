@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.pytest_cache
+.claude
+*.bak.*
+data_research_agent
+scripts
+.git
+*.db-shm
+*.db-wal

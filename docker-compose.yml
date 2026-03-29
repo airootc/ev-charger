@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  evcharger:
+    build: .
+    container_name: evcharger
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - CORS_ORIGINS=https://evcharger.unearth-ai.com
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - ./api_server/data.db:/app/api_server/data.db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.evcharger.rule=Host(`evcharger.unearth-ai.com`)"
+      - "traefik.http.routers.evcharger.tls.certresolver=letsencrypt"
+      - "traefik.http.services.evcharger.loadbalancer.server.port=8000"

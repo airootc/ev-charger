@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ev-charger
+    runtime: docker
+    plan: free
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: https://evcharger.unearth-ai.com

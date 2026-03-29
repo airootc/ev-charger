@@ -1,0 +1,830 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a0a;
+    color: #e0e0e0;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+    width: 320px;
+    min-width: 320px;
+    height: 100vh;
+    background: #111;
+    border-right: 1px solid #222;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    z-index: 10;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+#sidebar::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 2px;
+}
+
+.sidebar-header {
+    padding: 20px 16px 12px;
+    border-bottom: 1px solid #222;
+}
+
+.header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+}
+
+/* Fix #5 (contrast): #666 → #999 meets WCAG AA on #111 background */
+.subtitle {
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.2s;
+    display: none;
+}
+.icon-btn:hover { color: #fff; }
+
+#sidebar-close { display: none; }
+
+/* ── Stats ── */
+.stats-bar {
+    display: flex;
+    padding: 12px 16px;
+    gap: 8px;
+    border-bottom: 1px solid #222;
+}
+
+.stat {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    background: #1a1a1a;
+    border-radius: 8px;
+    transition: transform 0.2s;
+}
+.stat:hover {
+    transform: scale(1.03);
+}
+
+.stat-value {
+    display: block;
+    font-size: 20px;
+    font-weight: 700;
+    color: #f97316;
+    transition: all 0.4s ease;
+}
+
+/* Fix #5 (contrast): #666 → #999 */
+.stat-label {
+    font-size: 10px;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ── Breakdown Charts ── */
+.breakdown-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.breakdown-tab {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.breakdown-tab:hover { color: #ccc; border-color: #444; }
+.breakdown-tab.active {
+    background: #f97316;
+    border-color: #f97316;
+    color: #000;
+}
+
+.breakdown-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+.breakdown-chart::-webkit-scrollbar { width: 3px; }
+.breakdown-chart::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.bar-label {
+    width: 90px;
+    flex-shrink: 0;
+    color: #aaa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bar-track {
+    flex: 1;
+    height: 14px;
+    background: #1a1a1a;
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 2px;
+}
+
+/* Fix #5 (contrast): #666 → #999 */
+.bar-count {
+    width: 40px;
+    flex-shrink: 0;
+    text-align: right;
+    color: #999;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Filter sections ── */
+.filter-section {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.filter-section h3 {
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+/* ── Search ── */
+.search-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+/* Fix #5 (contrast): #555 → #888 */
+.search-icon {
+    position: absolute;
+    left: 12px;
+    color: #888;
+    pointer-events: none;
+}
+
+.search-box {
+    width: 100%;
+    padding: 10px 32px 10px 34px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-box:focus {
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+/* Fix #5 (contrast): #555 → #888 for placeholder text */
+.search-box::placeholder {
+    color: #888;
+}
+
+.search-clear {
+    position: absolute;
+    right: 8px;
+    background: #333;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.search-clear:hover {
+    background: #555;
+    color: #fff;
+}
+
+/* ── Filter chips ── */
+.filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #aaa;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+/* Fix #5 (a11y): visible focus ring for keyboard navigation */
+.filter-chip:focus-visible {
+    outline: 2px solid #f97316;
+    outline-offset: 2px;
+}
+
+.filter-chip:hover {
+    border-color: #555;
+    color: #fff;
+}
+
+.filter-chip.active {
+    background: #f97316;
+    border-color: #f97316;
+    color: #000;
+    font-weight: 600;
+}
+
+.chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.filter-chip.active .chip-dot {
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.3);
+}
+
+/* ── Select ── */
+.filter-select {
+    width: 100%;
+    padding: 8px 12px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.filter-select:focus {
+    border-color: #f97316;
+}
+
+/* ── Range slider ── */
+.range-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.range-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    outline: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #f97316;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+    transition: box-shadow 0.2s;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.3);
+}
+
+/* Fix #5: Firefox range thumb styling */
+.range-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #f97316;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+    transition: box-shadow 0.2s;
+}
+
+.range-slider::-moz-range-thumb:hover {
+    box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.3);
+}
+
+.range-value {
+    font-size: 12px;
+    color: #f97316;
+    font-weight: 600;
+    min-width: 50px;
+    text-align: right;
+}
+
+/* ── Legend ── */
+.legend {
+    margin-top: auto;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #999;
+    padding: 3px 0;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.legend-cluster {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #999;
+    padding: 3px 0;
+    margin-top: 4px;
+}
+
+.legend-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(249, 115, 22, 0.3);
+    border: 2px solid #f97316;
+    display: inline-block;
+}
+
+/* ── Footer ── */
+.sidebar-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #222;
+    text-align: center;
+}
+
+/* Fix #5 (contrast): #555 → #888 */
+.sidebar-footer p {
+    font-size: 11px;
+    color: #888;
+}
+
+.ready-note {
+    color: #f97316 !important;
+    margin-top: 4px;
+}
+
+/* ── Map ── */
+#map {
+    flex: 1;
+    height: 100vh;
+}
+
+/* ── Zoom hint overlay ──
+   Fix #5: Use calc() to offset for sidebar width on desktop so the hint
+   is centered over the map area, not the full viewport. */
+.zoom-hint {
+    position: fixed;
+    bottom: 40px;
+    left: calc(320px + (100vw - 320px) / 2);
+    transform: translateX(-50%);
+    background: rgba(17, 17, 17, 0.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #aaa;
+    font-size: 13px;
+    z-index: 20;
+    pointer-events: none;
+    transition: opacity 0.4s, transform 0.4s;
+    opacity: 1;
+}
+.zoom-hint.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    pointer-events: none;
+}
+.zoom-hint svg { color: #f97316; flex-shrink: 0; }
+
+/* ── Loading indicator ── */
+.loading-indicator {
+    position: fixed;
+    top: 16px;
+    left: calc(320px + (100vw - 320px) / 2);
+    transform: translateX(-50%);
+    z-index: 30;
+    background: rgba(17, 17, 17, 0.9);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 8px 16px;
+}
+
+.loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #333;
+    border-top-color: #f97316;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Map buttons (share, export) ── */
+.map-btn {
+    position: fixed;
+    width: 36px;
+    height: 36px;
+    background: rgba(17, 17, 17, 0.9);
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #aaa;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 15;
+    transition: all 0.2s;
+}
+.map-btn:hover {
+    background: #222;
+    color: #fff;
+    border-color: #555;
+}
+
+.share-btn { top: 16px; right: 60px; }
+.export-btn { top: 56px; right: 60px; }
+
+/* ── Share toast ── */
+.share-toast {
+    position: fixed;
+    bottom: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #f97316;
+    color: #000;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 24px;
+    border-radius: 8px;
+    z-index: 50;
+    transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+.share-toast.visible {
+    bottom: 40px;
+}
+
+/* ── Error toast (fix #2) ── */
+.error-toast {
+    position: fixed;
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #dc2626;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 24px;
+    border-radius: 8px;
+    z-index: 50;
+    transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    max-width: 400px;
+    text-align: center;
+}
+.error-toast.visible {
+    bottom: 40px;
+    pointer-events: auto;
+}
+
+/* ── Offline banner (fix #2) ── */
+.offline-banner {
+    position: fixed;
+    top: -50px;
+    left: 0;
+    right: 0;
+    background: #b45309;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    padding: 8px 16px;
+    z-index: 60;
+    transition: top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.offline-banner.visible {
+    top: 0;
+}
+
+/* ── No-results overlay (fix #2) ── */
+.no-results-overlay {
+    position: fixed;
+    bottom: 40px;
+    left: calc(320px + (100vw - 320px) / 2);
+    transform: translateX(-50%);
+    background: rgba(17, 17, 17, 0.92);
+    backdrop-filter: blur(10px);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #aaa;
+    font-size: 13px;
+    z-index: 20;
+    transition: opacity 0.4s, transform 0.4s;
+    opacity: 1;
+}
+.no-results-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(20px);
+}
+
+.reset-filters-btn {
+    background: #f97316;
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.reset-filters-btn:hover {
+    background: #fb923c;
+}
+
+/* ── Mobile sidebar toggle ── */
+#sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 25;
+    background: rgba(17, 17, 17, 0.9);
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e0e0e0;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+#sidebar-toggle:hover { background: #222; color: #fff; }
+
+/* ── MapLibre popup overrides ── */
+.maplibregl-popup-content {
+    background: #1a1a1a !important;
+    color: #e0e0e0 !important;
+    border-radius: 12px !important;
+    padding: 0 !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5) !important;
+    border: 1px solid #333 !important;
+    max-width: 320px !important;
+}
+
+.maplibregl-popup-tip {
+    border-top-color: #1a1a1a !important;
+}
+
+.maplibregl-popup-close-button {
+    color: #888 !important;
+    font-size: 18px !important;
+    right: 8px !important;
+    top: 8px !important;
+}
+
+.maplibregl-popup-close-button:hover {
+    color: #fff !important;
+    background: none !important;
+}
+
+/* ── Popup content ── */
+.popup-content {
+    padding: 16px;
+}
+
+.popup-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+    padding-right: 20px;
+}
+
+.popup-address {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 10px;
+}
+
+.popup-badges {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.popup-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.badge-dc { background: rgba(231,76,60,0.2); color: #e74c3c; }
+.badge-tesla { background: rgba(192,57,43,0.2); color: #e74c3c; }
+.badge-l2 { background: rgba(52,152,219,0.2); color: #3498db; }
+.badge-l1 { background: rgba(149,165,166,0.2); color: #95a5a6; }
+.badge-status { background: rgba(46,204,113,0.2); color: #2ecc71; }
+.badge-power { background: rgba(249,115,22,0.2); color: #f97316; }
+
+.popup-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.popup-table td {
+    padding: 4px 0;
+    border-bottom: 1px solid #222;
+}
+
+/* Fix #5 (contrast): #666 → #999 */
+.popup-table td:first-child {
+    color: #999;
+    width: 90px;
+}
+
+.popup-table td:last-child {
+    color: #ccc;
+}
+
+.popup-directions {
+    display: block;
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: #f97316;
+    color: #000;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+.popup-directions:hover { background: #fb923c; }
+
+/* ── Backdrop for mobile ── */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 9;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 300px;
+        transform: translateX(-100%);
+        z-index: 100;
+    }
+
+    #sidebar.open {
+        transform: translateX(0);
+    }
+
+    #sidebar-toggle {
+        display: flex;
+    }
+
+    #sidebar-close {
+        display: block;
+    }
+
+    .sidebar-backdrop.visible {
+        display: block;
+    }
+
+    #map {
+        width: 100vw;
+    }
+
+    .share-btn { top: 16px; right: 16px; }
+    .export-btn { top: 56px; right: 16px; }
+
+    /* On mobile there's no persistent sidebar, so center over full viewport */
+    .zoom-hint,
+    .no-results-overlay {
+        left: 50%;
+        bottom: 24px;
+        font-size: 12px;
+        padding: 8px 16px;
+    }
+
+    .loading-indicator {
+        left: 50%;
+    }
+}
+
+@media (max-width: 380px) {
+    #sidebar {
+        width: 100vw;
+    }
+
+    .stats-bar {
+        gap: 4px;
+        padding: 10px 12px;
+    }
+
+    .stat-value {
+        font-size: 16px;
+    }
+}

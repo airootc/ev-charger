@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global EV Charging Stations</title>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Mobile menu toggle -->
+    <button id="sidebar-toggle" aria-label="Toggle sidebar">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+    </button>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="header-row">
+                <div>
+                    <h1>EV Charging Stations</h1>
+                    <p class="subtitle">Global Infrastructure Map</p>
+                </div>
+                <button id="sidebar-close" class="icon-btn" aria-label="Close sidebar">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats (aria-live so screen readers announce updates) -->
+        <div id="stats" class="stats-bar" aria-live="polite">
+            <div class="stat">
+                <span id="total-count" class="stat-value">0</span>
+                <span class="stat-label">Stations</span>
+            </div>
+            <div class="stat">
+                <span id="visible-count" class="stat-value">0</span>
+                <span class="stat-label">Visible</span>
+            </div>
+            <div class="stat">
+                <span id="country-count" class="stat-value">0</span>
+                <span class="stat-label">Countries</span>
+            </div>
+        </div>
+
+        <!-- Breakdown Charts -->
+        <div id="breakdown-panel" class="filter-section">
+            <div class="breakdown-tabs" role="tablist" aria-label="Station breakdown view">
+                <button class="breakdown-tab active" data-tab="connector" role="tab" aria-selected="true">By Type</button>
+                <button class="breakdown-tab" data-tab="country" role="tab" aria-selected="false">By Country</button>
+                <button class="breakdown-tab" data-tab="network" role="tab" aria-selected="false">By Network</button>
+            </div>
+            <div id="breakdown-chart" class="breakdown-chart"></div>
+        </div>
+
+        <!-- Search -->
+        <div class="filter-section">
+            <div class="search-wrapper">
+                <svg class="search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <input type="text" id="search-input" placeholder="Search stations, networks, cities..." class="search-box">
+                <button id="search-clear" class="search-clear" aria-label="Clear search" style="display:none">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M9 3L3 9M3 3l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Connector Filter -->
+        <div class="filter-section">
+            <h3>Connector Type</h3>
+            <div class="filter-group" id="connector-filters" role="tablist" aria-label="Connector type filter">
+                <label class="filter-chip active" data-filter="all" role="button" tabindex="0" aria-selected="true">
+                    <span class="chip-dot" style="background:#fff"></span> All
+                </label>
+                <label class="filter-chip" data-filter="DC Fast" role="button" tabindex="0" aria-selected="false">
+                    <span class="chip-dot" style="background:#e74c3c"></span> DC Fast
+                </label>
+                <label class="filter-chip" data-filter="Tesla Supercharger" role="button" tabindex="0" aria-selected="false">
+                    <span class="chip-dot" style="background:#c0392b"></span> Tesla
+                </label>
+                <label class="filter-chip" data-filter="Level 2" role="button" tabindex="0" aria-selected="false">
+                    <span class="chip-dot" style="background:#3498db"></span> Level 2
+                </label>
+                <label class="filter-chip" data-filter="Level 1" role="button" tabindex="0" aria-selected="false">
+                    <span class="chip-dot" style="background:#95a5a6"></span> Level 1
+                </label>
+            </div>
+        </div>
+
+        <!-- Network Filter -->
+        <div class="filter-section">
+            <h3>Network</h3>
+            <select id="network-filter" class="filter-select">
+                <option value="all">All Networks</option>
+            </select>
+        </div>
+
+        <!-- Country Filter -->
+        <div class="filter-section">
+            <h3>Country</h3>
+            <select id="country-filter" class="filter-select">
+                <option value="all">All Countries</option>
+            </select>
+        </div>
+
+        <!-- Power Range -->
+        <div class="filter-section">
+            <h3>Min Power (kW)</h3>
+            <div class="range-container">
+                <input type="range" id="power-filter" min="0" max="350" value="0" class="range-slider" aria-label="Minimum power in kilowatts">
+                <span id="power-value" class="range-value">0 kW</span>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="filter-section legend">
+            <h3>Legend</h3>
+            <div class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span> DC Fast Charging</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#c0392b"></span> Tesla Supercharger</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#3498db"></span> Level 2</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#95a5a6"></span> Level 1</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#7f8c8d"></span> Unknown</div>
+            <div class="legend-cluster"><span class="legend-circle"></span> Cluster (zoom to expand)</div>
+        </div>
+
+        <div class="sidebar-footer">
+            <p>Data: 17 sources | Powered by MapLibre</p>
+            <p class="ready-note">Ready for Unearth Insights integration</p>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Zoom-in overlay -->
+    <div id="zoom-hint" class="zoom-hint">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+            <path d="M11 8v6M8 11h6M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>Zoom in for detailed station data</span>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loading-indicator" class="loading-indicator" style="display:none">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Share toast -->
+    <div id="share-toast" class="share-toast">Link copied to clipboard</div>
+
+    <!-- Share button on map -->
+    <button id="share-btn" class="map-btn share-btn" title="Copy shareable link">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="12" cy="3" r="2" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="12" cy="13" r="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5.7 7L10.3 4M5.7 9l4.6 3" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+    </button>
+
+    <!-- Export button -->
+    <button id="export-btn" class="map-btn export-btn" title="Export visible stations as CSV">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2v8M5 7l3 3 3-3M3 12v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </button>
+
+    <script src="app.js?v=8"></script>
+</body>
+</html>

@@ -1,0 +1,605 @@
+# Data Research Agent Configuration
+# ----------------------------------
+# Topic: Global EV Charging Station Locations
+#
+# Sources:
+#   1. OpenChargeMap  — global, free API key from openchargemap.org
+#   2. NREL Alt-Fuel  — US/Canada, free API key from developer.nrel.gov
+#
+# Setup:
+#   export OPENCHARGEMAP_API_KEY="your_key_here"
+#   export NREL_API_KEY="your_key_here"
+
+topic: "global_ev_charging_stations"
+
+sources:
+  # --- OpenChargeMap (Global) ---
+  # Register at https://openchargemap.org/site/develop/api for a free key
+  # Returns a root-level JSON array of station objects
+  # API docs: https://openchargemap.org/site/develop/api
+  - name: openchargemap
+    type: api
+    base_url: "https://api.openchargemap.io/v3/poi/"
+    rate_limit:
+      requests_per_second: 2
+    auth:
+      type: api_key
+      key_env: "OPENCHARGEMAP_API_KEY"
+      key_param: "key"
+    pagination:
+      style: offset
+      offset_param: "offset"
+      per_page: 500
+      per_page_param: "maxresults"
+    response_path: null  # root-level JSON array
+    # Map OpenChargeMap fields -> common schema
+    # OCM nests location data under AddressInfo and connections under Connections
+    field_mapping:
+      ID: station_id
+      AddressInfo.Title: station_name
+      AddressInfo.AddressLine1: address
+      AddressInfo.Town: city
+      AddressInfo.StateOrProvince: state
+      AddressInfo.Country.Title: country
+      AddressInfo.Country.ISOCode: country_code
+      AddressInfo.Postcode: postal_code
+      AddressInfo.Latitude: latitude
+      AddressInfo.Longitude: longitude
+      OperatorInfo.Title: operator
+      UsageType.Title: access_type
+      StatusType.Title: status
+      NumberOfPoints: num_ports
+      DateLastVerified: date_last_verified
+      DateLastStatusUpdate: date_last_updated
+      UsageCost: usage_cost
+      DataProvider.Title: data_provider
+
+  # --- NREL Alternative Fuels Station Locator (US/Canada) ---
+  # Register at https://developer.nrel.gov/signup/ for a free key
+  # API docs: https://developer.nrel.gov/docs/transportation/alt-fuel-stations-v1/
+  # Rate limit: 1,000 requests/hour
+  - name: nrel_alt_fuel
+    type: api
+    base_url: "https://developer.nrel.gov/api/alt-fuel-stations/v1.json"
+    rate_limit:
+      requests_per_second: 1
+    auth:
+      type: api_key
+      key_env: "NREL_API_KEY"
+      key_param: "api_key"
+    pagination:
+      style: offset
+      offset_param: "offset"
+      per_page: 200
+      per_page_param: "limit"
+    response_path: "fuel_stations"
+    # Map NREL fields -> common schema
+    field_mapping:
+      id: station_id
+      station_name: station_name
+      street_address: address
+      city: city
+      state: state
+      country: country
+      zip: postal_code
+      latitude: latitude
+      longitude: longitude
+      ev_network: network
+      ev_connector_types: connector_types
+      ev_level1_evse_num: num_level1_ports
+      ev_level2_evse_num: num_level2_ports
+      ev_dc_fast_num: num_dc_fast_ports
+      ev_pricing: usage_cost
+      station_phone: phone
+      access_code: access_type
+      status_code: status
+      open_date: date_opened
+      updated_at: date_last_updated
+      facility_type: facility_type
+      owner_type_code: owner_type
+
+  # --- OpenStreetMap Overpass (Global) ---
+  # No API key needed. Free, community-maintained.
+  # Rate limit: be polite, ~2 req/s max.
+  # Docs: https://wiki.openstreetmap.org/wiki/Overpass_API
+  - name: osm_overpass
+    type: osm_overpass
+    base_url: "https://overpass-api.de/api/interpreter"
+    rate_limit:
+      requests_per_second: 0.5
+    auth:
+      type: none
+    pagination:
+      style: offset
+      per_page: 5000
+    response_path: "elements"
+    # Field mapping handled internally by OSMOverpassCollector
+    field_mapping: {}
+    # Region bounding boxes for amenity=charging_station queries.
+    # Format: [lat_south, lon_west, lat_north, lon_east]
+    # Existing hardcoded regions in osm_collector.py are retained;
+    # these additional tiles improve coverage and granularity.
+    regions:
+      # --- Existing regions (from osm_collector.py REGION_TILES) ---
+      europe_west:        [35, -15, 60, 15]
+      europe_east:        [35, 15, 60, 45]
+      europe_north:       [60, -15, 72, 45]
+      north_america_east: [25, -100, 50, -60]
+      north_america_west: [25, -130, 50, -100]
+      east_asia:          [20, 100, 50, 145]
+      south_asia:         [5, 65, 35, 100]
+      southeast_asia:     [-10, 95, 20, 145]
+      oceania:            [-50, 110, -10, 180]
+      south_america:      [-55, -80, 15, -35]
+      africa_north:       [0, -20, 37, 55]
+      africa_south:       [-35, 10, 0, 55]
+      middle_east:        [12, 25, 42, 65]
+      # --- New regions ---
+      north_america_full: [24, -130, 55, -60]    # USA + Canada (extended north for Canadian provinces)
+      south_america_ext:  [-56, -82, 13, -34]     # South America (extended west for Colombia/Ecuador coast)
+      japan_korea:        [30, 124, 46, 146]       # Japan + South Korea dedicated tile
+      middle_east_core:   [12, 34, 42, 60]         # Middle East (tighter focus: Gulf states, Iran, Iraq, Israel)
+      africa_south_east:  [-35, 15, 15, 52]        # South & East Africa (Kenya, Tanzania, South Africa, etc.)
+      uk_ireland:         [49, -11, 61, 2]          # UK + Ireland dedicated tile
+      scandinavia:        [54, 4, 72, 32]           # Scandinavia (Norway, Sweden, Denmark, Finland)
+      india:              [6, 68, 38, 98]            # India dedicated tile
+
+  # --- Bundesnetzagentur / Germany (ArcGIS FeatureServer) ---
+  # No API key needed. Official German regulator data.
+  # ~120k+ stations. Max 2000 per page.
+  # Docs: https://ladestationen.api.bund.dev/
+  - name: bundesnetzagentur
+    type: arcgis
+    base_url: "https://services2.arcgis.com/jUpNdisbWqRpMo35/arcgis/rest/services/Ladesaeulen_in_Deutschland/FeatureServer/0/query"
+    rate_limit:
+      requests_per_second: 2
+    auth:
+      type: none
+    pagination:
+      style: offset
+      offset_param: "resultOffset"
+      per_page: 2000
+      per_page_param: "resultRecordCount"
+    response_path: "features"
+    # Field mapping handled internally by ArcGISCollector
+    field_mapping: {}
+
+  # --- NOBIL (Norway & Sweden) ---
+  # Free API key from https://info.nobil.no/english
+  # Real-time availability data. ~25k+ stations.
+  # Docs: https://info.nobil.no/files/API_NOBIL_Documentation_v3_20250827.pdf
+  - name: nobil
+    type: api
+    base_url: "https://nobil.no/api/server/datadump.php"
+    rate_limit:
+      requests_per_second: 1
+    auth:
+      type: api_key
+      key_env: "NOBIL_API_KEY"
+      key_param: "apikey"
+    pagination:
+      style: page_number
+      per_page: 5000
+      per_page_param: "limit"
+    response_path: "chargerstations"
+    field_mapping:
+      csmd.id: station_id
+      csmd.name: station_name
+      csmd.Street: address
+      csmd.City: city
+      csmd.County: state
+      csmd.Land_code: country_code
+      csmd.Zipcode: postal_code
+      csmd.Position: position_raw
+      csmd.Owner: operator
+      csmd.Number_charging_points: num_ports
+      csmd.Updated: date_last_updated
+
+  # --- Supercharge.info (Global Tesla Superchargers) ---
+  # No API key needed. Community-maintained.
+  # Returns all ~7-10k sites in one response.
+  # Source: https://supercharge.info
+  - name: supercharger_info
+    type: supercharger
+    base_url: "https://supercharge.info/service/supercharge/allSites"
+    rate_limit:
+      requests_per_second: 0.5
+    auth:
+      type: none
+    pagination:
+      style: page_number
+      per_page: 10000
+    response_path: null
+    field_mapping: {}
+
+  # --- France IRVE (Government consolidated dataset) ---
+  # No API key needed. Updated daily. ~100k+ charging points.
+  # Source: https://www.data.gouv.fr/en/datasets/fichier-consolide-des-bornes-de-recharge-pour-vehicules-electriques/
+  - name: france_irve
+    type: france_irve
+    base_url: "https://www.data.gouv.fr/fr/datasets/r/eb76d20a-8501-400e-b336-d85724de5435"
+    rate_limit:
+      requests_per_second: 0.5
+    auth:
+      type: none
+    pagination:
+      style: page_number
+      per_page: 100000
+    response_path: null
+    field_mapping: {}
+
+  # --- South Korea Ministry of Environment ---
+  # Free API key from https://www.data.go.kr/data/15076352/openapi.do
+  # ~60k+ public chargers with real-time status.
+  - name: korea_ev
+    type: korea_ev
+    base_url: "http://apis.data.go.kr/B552584/EvCharger/getChargerInfo"
+    rate_limit:
+      requests_per_second: 1
+    auth:
+      type: api_key
+      key_env: "KOREA_DATA_API_KEY"
+      key_param: "serviceKey"
+    pagination:
+      style: page_number
+      page_param: "pageNo"
+      per_page: 1000
+      per_page_param: "numOfRows"
+    response_path: null
+    field_mapping: {}
+
+  # --- NREL Alt-Fuel Canada ---
+  # Same NREL API as US but filtered to country=CA.
+  # Uses same free NREL API key.
+  # ~13k stations / ~34k ports.
+  - name: nrel_canada
+    type: api
+    base_url: "https://developer.nrel.gov/api/alt-fuel-stations/v1.json"
+    rate_limit:
+      requests_per_second: 1
+    auth:
+      type: api_key
+      key_env: "NREL_API_KEY"
+      key_param: "api_key"
+    pagination:
+      style: offset
+      offset_param: "offset"
+      per_page: 200
+      per_page_param: "limit"
+    response_path: "fuel_stations"
+    field_mapping:
+      id: station_id
+      station_name: station_name
+      street_address: address
+      city: city
+      state: state
+      country: country
+      zip: postal_code
+      latitude: latitude
+      longitude: longitude
+      ev_network: network
+      ev_connector_types: connector_types
+      ev_level1_evse_num: num_level1_ports
+      ev_level2_evse_num: num_level2_ports
+      ev_dc_fast_num: num_dc_fast_ports
+      ev_pricing: usage_cost
+      station_phone: phone
+      access_code: access_type
+      status_code: status
+      open_date: date_opened
+      updated_at: date_last_updated
+      facility_type: facility_type
+      owner_type_code: owner_type
+
+  # --- Australia NSW (Transport for NSW) ---
+  # No API key needed. Government open data (CSV download).
+  # Covers NSW EV charging stations including planned.
+  # Source: https://opendata.transport.nsw.gov.au
+  - name: australia_nsw
+    type: csv_download
+    base_url: "https://opendata.transport.nsw.gov.au/data/dataset/be1c4de4-4517-4bd0-8a09-2965ddfc7179/resource/7bbb6461-e52d-4fe7-ace4-a15c30198de0/download/ev_chargers_consolidated_sep25.csv"
+    rate_limit:
+      requests_per_second: 1
+    auth:
+      type: none
+    pagination:
+      style: page_number
+      per_page: 10000
+    response_path: null
+    field_mapping:
+      Station_name: station_name
+      Station_address: address
+      LGANAME: city
+      PCODE: postal_code
+      Latitude: latitude
+      Longitude: longitude
+      Operator: operator
+      Charger_type: connector_types
+      Number_of_plugs: num_ports
+      Charger_rating: power_kw
+      Opening_hours: access_type
+
+  # --- Australia Victoria (WFS GeoJSON) ---
+  # No API key needed. Government WFS endpoint.
+  # ~142 government-funded EV charging locations.
+  # Source: https://discover.data.vic.gov.au
+  - name: australia_vic
+    type: wfs
+    base_url: "https://opendata.maps.vic.gov.au/geoserver/open-data-platform/wfs"
+    rate_limit:
+      requests_per_second: 1
+    auth:
+      type: none
+    pagination:
+      style: offset
+      per_page: 1000
+    response_path: "features"
+    field_mapping:
+      _typeName: "open-data-platform:dcav_site"
+      location: station_name
+      address: address
+      region: state
+      plug_type: connector_types
+      number_of_chargers: num_ports
+      company: operator
+      lead_organisation: network
+      nearby_amenities_attractions: facility_type
+
+  # --- Singapore LTA (Land Transport Authority) ---
+  # No API key needed for static CSV download.
+  # Official government EV charging points dataset.
+  # Source: https://datamall.lta.gov.sg
+  - name: singapore_lta
+    type: csv_download
+    base_url: "https://datamall.lta.gov.sg/content/dam/datamall/datasets/Facts_Figures/Electric-Vehicle-Charging-Network/EVChargingPoints.zip"
+    rate_limit:
+      requests_per_second: 0.5
+    auth:
+      type: none
+    pagination:
+      style: page_number
+      per_page: 10000
+    response_path: null
+    field_mapping:
+      "Building Name": station_name
+      "Street Name": address
+      "Block/House No": address_number
+      latitude: latitude
+      longitude: longitude
+      operator: operator
+      plugType: connector_types
+      "No. of Charging Outlets": num_ports
+      chargingSpeed: power_kw
+      PostalCode: postal_code
+      evCpId: station_id
+      "Is the charger publicly accessible?": access_type
+
+  # --- OpenChargeMap Australia (country-filtered) ---
+  # Covers all of Australia including states without their own API.
+  # Uses same free OCM API key.
+  - name: ocm_australia
+    type: api
+    base_url: "https://api.openchargemap.io/v3/poi/?countrycode=AU&output=json&compact=true&verbose=false"
+    rate_limit:
+      requests_per_second: 2
+    auth:
+      type: api_key
+      key_env: "OPENCHARGEMAP_API_KEY"
+      key_param: "key"
+    pagination:
+      style: offset
+      offset_param: "offset"
+      per_page: 500
+      per_page_param: "maxresults"
+    response_path: null
+    field_mapping:
+      ID: station_id
+      AddressInfo.Title: station_name
+      AddressInfo.AddressLine1: address
+      AddressInfo.Town: city
+      AddressInfo.StateOrProvince: state
+      AddressInfo.Country.Title: country
+      AddressInfo.Country.ISOCode: country_code
+      AddressInfo.Postcode: postal_code
+      AddressInfo.Latitude: latitude
+      AddressInfo.Longitude: longitude
+      OperatorInfo.Title: operator
+      UsageType.Title: access_type
+      StatusType.Title: status
+      NumberOfPoints: num_ports
+      DateLastStatusUpdate: date_last_updated
+      UsageCost: usage_cost
+      DataProvider.Title: data_provider
+
+  # --- OpenChargeMap Southeast Asia ---
+  # Covers: Thailand, Malaysia, Singapore, Indonesia, Philippines, Vietnam,
+  #         Taiwan, Hong Kong — most have no government API.
+  # Uses bounding box: lat 10S to 30N, lng 90E to 145E
+  - name: ocm_southeast_asia
+    type: api
+    base_url: "https://api.openchargemap.io/v3/poi/?output=json&compact=true&verbose=false&boundingbox=(-10,90),(30,145)"
+    rate_limit:
+      requests_per_second: 2
+    auth:
+      type: api_key
+      key_env: "OPENCHARGEMAP_API_KEY"
+      key_param: "key"
+    pagination:
+      style: offset
+      offset_param: "offset"
+      per_page: 500
+      per_page_param: "maxresults"
+    response_path: null
+    field_mapping:
+      ID: station_id
+      AddressInfo.Title: station_name
+      AddressInfo.AddressLine1: address
+      AddressInfo.Town: city
+      AddressInfo.StateOrProvince: state
+      AddressInfo.Country.Title: country
+      AddressInfo.Country.ISOCode: country_code
+      AddressInfo.Postcode: postal_code
+      AddressInfo.Latitude: latitude
+      AddressInfo.Longitude: longitude
+      OperatorInfo.Title: operator
+      UsageType.Title: access_type
+      StatusType.Title: status
+      NumberOfPoints: num_ports
+      DateLastStatusUpdate: date_last_updated
+      UsageCost: usage_cost
+      DataProvider.Title: data_provider
+
+  # --- TomTom EV Charging (SEA + Australia) ---
+  # Best commercial coverage for Southeast Asia. 2.1M+ points globally.
+  # Free tier: 2,500 requests/day. Register at https://developer.tomtom.com
+  # Covers: TH, MY, SG, ID, PH, VN, TW, HK, AU with local ground teams.
+  - name: tomtom_sea
+    type: tomtom_ev
+    base_url: "https://api.tomtom.com/search/2/categorySearch/ev+charging.json"
+    rate_limit:
+      requests_per_second: 5
+    auth:
+      type: api_key
+      key_env: "TOMTOM_API_KEY"
+      key_param: "key"
+    pagination:
+      style: offset
+      offset_param: "ofs"
+      per_page: 100
+      per_page_param: "limit"
+    response_path: "results"
+    field_mapping: {}
+
+  # --- HERE Technologies EV Charge Points (SEA + AU) ---
+  # Strong SEA presence with dedicated local teams. 250k free tx/month.
+  # Register free at https://platform.here.com
+  - name: here_sea
+    type: here_ev
+    base_url: "https://ev-v2.cc.api.here.com/ev/stations.json"
+    rate_limit:
+      requests_per_second: 5
+    auth:
+      type: api_key
+      key_env: "HERE_API_KEY"
+      key_param: "apiKey"
+    pagination:
+      style: page_number
+      per_page: 100
+    response_path: null
+    field_mapping: {}
+
+  # --- Google Places API (New) — EV Charging (SEA + AU) ---
+  # Broadest consumer-facing data. Strong in SG, TH, MY.
+  # Enable Places API (New) at console.cloud.google.com
+  # Free 5-10k events/month per SKU.
+  - name: google_places_sea
+    type: google_places_ev
+    base_url: "https://places.googleapis.com/v1/places:searchNearby"
+    rate_limit:
+      requests_per_second: 5
+    auth:
+      type: api_key
+      key_env: "GOOGLE_MAPS_API_KEY"
+      key_param: "key"
+    pagination:
+      style: page_number
+      per_page: 20
+    response_path: "places"
+    field_mapping: {}
+
+# Search parameters for batch collection
+search_params:
+  keywords: []
+  location: null
+  date_range:
+    from: null
+    to: null
+  # Extra filters passed as query params to ALL sources
+  # Each API ignores params it doesn't recognize
+  filters:
+    # OpenChargeMap params
+    output: "json"
+    compact: "true"
+    verbose: "false"
+    # NREL params
+    fuel_type: "ELEC"
+    status: "E"                    # E = open/operational
+    country: "US"
+    access: "public"
+    # NOBIL params (ignored by non-NOBIL sources)
+    apiversion: "3"
+    action: "search"
+    format: "json"
+    # Korea params (ignored by non-Korea sources)
+    dataType: "JSON"
+
+# Crawl settings — check for new stations every 12 hours
+crawl:
+  schedule: "0 */12 * * *"
+  max_records_per_run: 500000
+
+# Cleaning pipeline configuration
+cleaning:
+  # A station is unique by name + lat + lng
+  dedup_keys:
+    - station_name
+    - latitude
+    - longitude
+
+  # Minimum viable station record
+  required_fields:
+    - station_name
+    - latitude
+    - longitude
+
+  # Field type declarations for normalization
+  field_types:
+    station_id: text
+    station_name: text
+    address: text
+    city: text
+    state: text
+    country: text
+    country_code: text
+    postal_code: text
+    latitude: number
+    longitude: number
+    network: text
+    operator: text
+    connector_types: text
+    num_ports: number
+    num_level1_ports: number
+    num_level2_ports: number
+    num_dc_fast_ports: number
+    status: text
+    access_type: text
+    usage_cost: text
+    phone: text
+    facility_type: text
+    owner_type: text
+    power_kw: number
+    data_provider: text
+    date_opened: date
+    date_last_verified: date
+    date_last_updated: date
+
+  # No derived fields needed
+  enrichment: {}
+
+# Output settings
+output:
+  format: csv
+  clean_file: "data/clean/ev_stations_global.csv"
+  flagged_file: "data/clean/ev_stations_flagged.csv"
+  report_file: "data/clean/ev_stations_report.json"
+
+# GeoJSON / Map export settings
+# Run: python main.py geo
+# Providers: unearth, mapbox, leaflet, google, deckgl
+geo_export:
+  output_dir: "data/geo"
+  geojson_file: "data/geo/ev_stations.geojson"
+  providers:
+    - unearth    # Ready for when Unearth Insights API launches
+    - mapbox     # Fallback / development
+    - leaflet    # Free OSM-based option

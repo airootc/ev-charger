@@ -1,0 +1,142 @@
+[
+  {
+    "source": "test_api",
+    "fetched_at": "2025-06-01T10:00:00",
+    "raw_data": {
+      "title": "Senior Data Engineer",
+      "company": "TechCorp",
+      "location": "san francisco, ca",
+      "salary_min": "$120,000",
+      "salary_max": "$180K",
+      "date_posted": "March 5, 2025",
+      "source_url": "https://example.com/job/1?utm_source=google&fbclid=abc123"
+    },
+    "source_url": "https://example.com/job/1"
+  },
+  {
+    "source": "test_api",
+    "fetched_at": "2025-06-01T10:00:01",
+    "raw_data": {
+      "title": "ML Engineer",
+      "company": "AIStartup",
+      "location": "  new york,   NY  ",
+      "salary_min": "95000",
+      "salary_max": "140000",
+      "date_posted": "2025-03-10",
+      "source_url": "https://example.com/job/2"
+    },
+    "source_url": "https://example.com/job/2"
+  },
+  {
+    "source": "test_api",
+    "fetched_at": "2025-06-01T10:00:02",
+    "raw_data": {
+      "title": "Senior Data Engineer",
+      "company": "TechCorp",
+      "location": "San Francisco, CA",
+      "salary_min": "$120,000",
+      "salary_max": "$180,000",
+      "date_posted": "03/05/2025",
+      "source_url": "https://example.com/job/1?utm_medium=cpc"
+    },
+    "source_url": "https://example.com/job/1"
+  },
+  {
+    "source": "test_scraper",
+    "fetched_at": "2025-06-01T11:00:00",
+    "raw_data": {
+      "title": "Backend Developer",
+      "company": "WebCo",
+      "location": "austin, TX",
+      "salary_min": "110k",
+      "salary_max": "$150K",
+      "date_posted": "Feb 28, 2025",
+      "source_url": "https://example.com/job/3"
+    },
+    "source_url": "https://example.com/job/3"
+  },
+  {
+    "source": "test_scraper",
+    "fetched_at": "2025-06-01T11:00:01",
+    "raw_data": {
+      "title": "Frontend Engineer",
+      "company": "DesignLab",
+      "location": "REMOTE",
+      "salary_min": "80000",
+      "salary_max": "120000",
+      "date_posted": "2025/03/15",
+      "source_url": "https://example.com/job/4"
+    },
+    "source_url": "https://example.com/job/4"
+  },
+  {
+    "source": "test_scraper",
+    "fetched_at": "2025-06-01T11:00:02",
+    "raw_data": {
+      "title": null,
+      "company": "NoTitleCo",
+      "location": "Denver, CO",
+      "salary_min": "90000",
+      "salary_max": "130000",
+      "date_posted": "2025-03-20",
+      "source_url": "https://example.com/job/5"
+    },
+    "source_url": "https://example.com/job/5"
+  },
+  {
+    "source": "test_api",
+    "fetched_at": "2025-06-01T12:00:00",
+    "raw_data": {
+      "title": "Data Scientist",
+      "company": "DataCo",
+      "location": "seattle, WA",
+      "salary_min": "$1,500",
+      "salary_max": "not specified",
+      "date_posted": "invalid-date",
+      "source_url": "https://example.com/job/6"
+    },
+    "source_url": "https://example.com/job/6"
+  },
+  {
+    "source": "test_api",
+    "fetched_at": "2025-06-01T12:00:01",
+    "raw_data": {
+      "title": "DevOps Engineer",
+      "company": "CloudInc",
+      "location": "portland, or",
+      "salary_min": "125000",
+      "salary_max": "175000",
+      "date_posted": "20 Mar 2025",
+      "source_url": "https://example.com/job/7"
+    },
+    "source_url": "https://example.com/job/7"
+  },
+  {
+    "source": "test_rss",
+    "fetched_at": "2025-06-01T13:00:00",
+    "raw_data": {
+      "title": "Platform Engineer",
+      "company": "InfraCo",
+      "location": "chicago, il",
+      "salary_min": "$130,000",
+      "salary_max": "$190,000",
+      "date_posted": "2025-03-22",
+      "source_url": "https://example.com/job/8"
+    },
+    "source_url": "https://example.com/job/8"
+  },
+  {
+    "source": "test_rss",
+    "fetched_at": "2025-06-01T13:00:01",
+    "raw_data": {
+      "title": "  ML Engineer  ",
+      "company": "  AIStartup  ",
+      "location": "new york, NY",
+      "salary_min": "95000",
+      "salary_max": "140000",
+      "date_posted": "2025-03-10",
+      "source_url": "https://example.com/job/2"
+    },
+    "source_url": "https://example.com/job/2"
+  }
+]
