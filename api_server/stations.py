@@ -105,6 +105,13 @@ def _load_features(path: str) -> list[dict]:
     use ``ijson`` for streaming parsing which keeps peak memory lower.
     Falls back to ``json.load`` when ijson is unavailable.
     """
+    # Handle gzip-compressed files
+    if path.endswith(".gz"):
+        logger.info("Loading compressed file: %s", path)
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            geojson = json.load(fh)
+        return geojson.get("features", [])
+
     # Auto-detect compressed version
     gz_path = path + ".gz"
     if not os.path.exists(path) and os.path.exists(gz_path):
@@ -150,7 +157,13 @@ def load_geojson() -> int:
 
     path = settings.GEOJSON_PATH
     if not Path(path).exists():
-        raise FileNotFoundError(f"GeoJSON file not found: {path}")
+        # Try compressed version
+        gz_path = path + ".gz"
+        if Path(gz_path).exists():
+            logger.info("Uncompressed file not found, using %s", gz_path)
+            path = gz_path
+        else:
+            raise FileNotFoundError(f"GeoJSON file not found: {path} (also tried {gz_path})")
 
     features = _load_features(path)
 

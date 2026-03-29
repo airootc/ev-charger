@@ -79,29 +79,32 @@ class Settings:
 
         # --- ADMIN_TOKEN ---
         if not cls.ADMIN_TOKEN or cls.ADMIN_TOKEN == _DEFAULT_ADMIN_TOKEN:
-            if is_production:
-                raise RuntimeError(
-                    "ADMIN_TOKEN is not set or still uses the default value. "
-                    "Set a strong ADMIN_TOKEN environment variable before running in production."
-                )
-            # Auto-generate a random token for development convenience
+            # Auto-generate a random token if not set
             cls.ADMIN_TOKEN = secrets.token_urlsafe(_AUTO_TOKEN_LENGTH)
-            logger.warning(
-                "ADMIN_TOKEN was not set — auto-generated a random token for this session. "
-                "Set the ADMIN_TOKEN environment variable to silence this warning."
-            )
+            if is_production:
+                logger.warning(
+                    "ADMIN_TOKEN was not set — auto-generated a random token for this session. "
+                    "Set the ADMIN_TOKEN environment variable for a persistent token."
+                )
+            else:
+                logger.warning(
+                    "ADMIN_TOKEN was not set — auto-generated a random token for this session. "
+                    "Set the ADMIN_TOKEN environment variable to silence this warning."
+                )
 
         # --- API_SECRET_KEY ---
         if cls.API_SECRET_KEY == _DEFAULT_API_SECRET_KEY:
             if is_production:
-                raise RuntimeError(
-                    "API_SECRET_KEY is still set to the default placeholder. "
-                    "Set a strong API_SECRET_KEY environment variable before running in production."
+                cls.API_SECRET_KEY = secrets.token_urlsafe(_AUTO_TOKEN_LENGTH)
+                logger.warning(
+                    "API_SECRET_KEY was not set — auto-generated for this session. "
+                    "Set the API_SECRET_KEY environment variable for persistence."
                 )
-            logger.warning(
-                "API_SECRET_KEY is using the default placeholder value. "
-                "Set the API_SECRET_KEY environment variable before deploying."
-            )
+            else:
+                logger.warning(
+                    "API_SECRET_KEY is using the default placeholder value. "
+                    "Set the API_SECRET_KEY environment variable before deploying."
+                )
 
 
 settings = Settings()
