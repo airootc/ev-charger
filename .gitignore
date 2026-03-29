@@ -32,3 +32,9 @@ Thumbs.db
 
 # Logs
 scripts/logs/
+
+# Large raw data files (collected data)
+data_research_agent/data/raw/
+data_research_agent/data/geo/
+data_research_agent/data/clean/
+data_research_agent/data/logs/
