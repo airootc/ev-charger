@@ -106,6 +106,25 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_request_log_timestamp
                 ON request_log(timestamp);
+
+            CREATE TABLE IF NOT EXISTS station_submissions (
+                id TEXT PRIMARY KEY,
+                station_name TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                connector_type TEXT,
+                network TEXT,
+                num_ports INTEGER,
+                address TEXT,
+                submitter_email TEXT,
+                notes TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                reviewed_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_submissions_status
+                ON station_submissions(status);
         """)
 
 

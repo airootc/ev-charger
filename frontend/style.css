@@ -814,6 +814,239 @@ body {
     }
 }
 
+/* ── Report a Station Button ── */
+.report-station-btn {
+    position: fixed;
+    bottom: 28px;
+    right: 24px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #00C853;
+    color: #000;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 200, 83, 0.35);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.report-station-btn:hover {
+    background: #00E676;
+    box-shadow: 0 6px 28px rgba(0, 200, 83, 0.5);
+    transform: translateY(-2px);
+}
+.report-station-btn:active {
+    transform: translateY(0);
+}
+
+/* ── Report Modal Backdrop ── */
+.report-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.report-modal-backdrop.open {
+    display: flex;
+    opacity: 1;
+}
+
+/* ── Report Modal ── */
+.report-modal {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 16px;
+    width: 460px;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    transform: translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.report-modal-backdrop.open .report-modal {
+    transform: translateY(0);
+}
+.report-modal::-webkit-scrollbar { width: 4px; }
+.report-modal::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.report-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #2a2a2a;
+}
+.report-modal-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+}
+.report-modal-close {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.report-modal-close:hover {
+    color: #fff;
+    background: #333;
+}
+
+/* ── Report Form ── */
+.report-form {
+    padding: 20px 24px 24px;
+}
+.report-field {
+    margin-bottom: 16px;
+    flex: 1;
+}
+.report-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+.report-field .required {
+    color: #00C853;
+}
+.report-field input,
+.report-field select,
+.report-field textarea {
+    width: 100%;
+    padding: 10px 14px;
+    background: #0d0d0d;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.report-field input:focus,
+.report-field select:focus,
+.report-field textarea:focus {
+    border-color: #00C853;
+    box-shadow: 0 0 0 3px rgba(0, 200, 83, 0.15);
+}
+.report-field input::placeholder,
+.report-field textarea::placeholder {
+    color: #555;
+}
+.report-field select {
+    cursor: pointer;
+}
+.report-field textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.report-field-row {
+    display: flex;
+    gap: 12px;
+}
+
+.report-hint {
+    font-size: 12px;
+    color: #00C853;
+    margin: -8px 0 16px;
+    cursor: default;
+}
+
+/* ── Submit Button ── */
+.report-submit-btn {
+    width: 100%;
+    padding: 12px;
+    background: #00C853;
+    color: #000;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+}
+.report-submit-btn:hover {
+    background: #00E676;
+}
+.report-submit-btn:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+}
+
+/* ── Report Message (success/error) ── */
+.report-message {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0;
+    margin-bottom: 0;
+    border-radius: 8px;
+    text-align: center;
+    transition: all 0.3s;
+}
+.report-message.success {
+    background: rgba(0, 200, 83, 0.12);
+    color: #00C853;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+}
+.report-message.error {
+    background: rgba(220, 38, 38, 0.12);
+    color: #ef4444;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+}
+
+/* ── Report Placement Marker ── */
+.report-marker {
+    width: 32px;
+    height: 32px;
+    background: #00C853;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 10px rgba(0, 200, 83, 0.5);
+    cursor: grab;
+}
+
+@media (max-width: 768px) {
+    .report-station-btn {
+        bottom: 20px;
+        right: 16px;
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+    .report-station-btn span {
+        display: none;
+    }
+    .report-modal {
+        width: 96vw;
+        max-height: 90vh;
+    }
+}
+
 @media (max-width: 380px) {
     #sidebar {
         width: 100vw;

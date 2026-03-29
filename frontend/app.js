@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMobile();
     setupShareExport();
     setupOfflineDetection();
+    setupReportStation();
 
     // Restore filters from hash
     if (hashState.connector) {
@@ -851,6 +852,172 @@ function updateStats(visibleCount) {
     if (visibleCount !== undefined) {
         animateCounter('visible-count', visibleCount);
     }
+}
+
+// ── Report a Station ──
+
+let _reportMarker = null;
+let _reportMapClickHandler = null;
+let _reportModalOpen = false;
+
+function setupReportStation() {
+    const btn = document.getElementById('report-station-btn');
+    const backdrop = document.getElementById('report-modal-backdrop');
+    const closeBtn = document.getElementById('report-modal-close');
+    const form = document.getElementById('report-form');
+
+    btn.addEventListener('click', openReportModal);
+    closeBtn.addEventListener('click', closeReportModal);
+    backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) closeReportModal();
+    });
+
+    // Escape key closes modal
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && _reportModalOpen) closeReportModal();
+    });
+
+    form.addEventListener('submit', handleReportSubmit);
+}
+
+function openReportModal() {
+    const backdrop = document.getElementById('report-modal-backdrop');
+    backdrop.style.display = 'flex';
+    // Force reflow so CSS transition triggers
+    void backdrop.offsetHeight;
+    backdrop.classList.add('open');
+    _reportModalOpen = true;
+
+    // Enable map click to set lat/lng
+    _reportMapClickHandler = (e) => {
+        const { lng, lat } = e.lngLat;
+        document.getElementById('report-lat').value = lat.toFixed(6);
+        document.getElementById('report-lng').value = lng.toFixed(6);
+
+        // Place or move marker
+        if (_reportMarker) {
+            _reportMarker.setLngLat([lng, lat]);
+        } else {
+            const el = document.createElement('div');
+            el.className = 'report-marker';
+            _reportMarker = new maplibregl.Marker({ element: el, draggable: true })
+                .setLngLat([lng, lat])
+                .addTo(map);
+            _reportMarker.on('dragend', () => {
+                const pos = _reportMarker.getLngLat();
+                document.getElementById('report-lat').value = pos.lat.toFixed(6);
+                document.getElementById('report-lng').value = pos.lng.toFixed(6);
+            });
+        }
+    };
+    map.on('click', _reportMapClickHandler);
+
+    // Highlight the map hint
+    document.getElementById('report-map-hint').style.display = 'block';
+}
+
+function closeReportModal() {
+    const backdrop = document.getElementById('report-modal-backdrop');
+    backdrop.classList.remove('open');
+    setTimeout(() => { backdrop.style.display = 'none'; }, 300);
+    _reportModalOpen = false;
+
+    // Remove map click handler
+    if (_reportMapClickHandler) {
+        map.off('click', _reportMapClickHandler);
+        _reportMapClickHandler = null;
+    }
+
+    // Remove placement marker
+    if (_reportMarker) {
+        _reportMarker.remove();
+        _reportMarker = null;
+    }
+
+    // Clear form state
+    clearReportMessage();
+}
+
+async function handleReportSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const submitBtn = document.getElementById('report-submit-btn');
+    const msgEl = document.getElementById('report-message');
+
+    // Build payload
+    const payload = {
+        station_name: form.station_name.value.trim(),
+        latitude: parseFloat(form.latitude.value),
+        longitude: parseFloat(form.longitude.value),
+    };
+
+    // Optional fields
+    if (form.connector_type.value) payload.connector_type = form.connector_type.value;
+    if (form.network.value.trim()) payload.network = form.network.value.trim();
+    if (form.num_ports.value) payload.num_ports = parseInt(form.num_ports.value);
+    if (form.address.value.trim()) payload.address = form.address.value.trim();
+    if (form.submitter_email.value.trim()) payload.submitter_email = form.submitter_email.value.trim();
+    if (form.notes.value.trim()) payload.notes = form.notes.value.trim();
+
+    // Validate
+    if (!payload.station_name) {
+        showReportMessage('Station name is required.', 'error');
+        return;
+    }
+    if (isNaN(payload.latitude) || payload.latitude < -90 || payload.latitude > 90) {
+        showReportMessage('Latitude must be between -90 and 90.', 'error');
+        return;
+    }
+    if (isNaN(payload.longitude) || payload.longitude < -180 || payload.longitude > 180) {
+        showReportMessage('Longitude must be between -180 and 180.', 'error');
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    clearReportMessage();
+
+    try {
+        const resp = await fetch(`${API_BASE}/stations/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok) {
+            showReportMessage('Station submitted for review! Thank you.', 'success');
+            form.reset();
+            // Close modal after a short delay
+            setTimeout(() => {
+                closeReportModal();
+            }, 2000);
+        } else {
+            const detail = data.detail;
+            const msg = typeof detail === 'string' ? detail
+                : Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ')
+                : 'Submission failed. Please try again.';
+            showReportMessage(msg, 'error');
+        }
+    } catch (err) {
+        showReportMessage('Network error. Please check your connection.', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Station Report';
+    }
+}
+
+function showReportMessage(text, type) {
+    const el = document.getElementById('report-message');
+    el.textContent = text;
+    el.className = `report-message ${type}`;
+}
+
+function clearReportMessage() {
+    const el = document.getElementById('report-message');
+    el.textContent = '';
+    el.className = 'report-message';
 }
 
 /**

@@ -158,6 +158,79 @@
     <!-- Share toast -->
     <div id="share-toast" class="share-toast">Link copied to clipboard</div>
 
+    <!-- Report a Station button -->
+    <button id="report-station-btn" class="report-station-btn" title="Report a new charging station">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 3v12M3 9h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <span>Report a Station</span>
+    </button>
+
+    <!-- Report a Station Modal -->
+    <div id="report-modal-backdrop" class="report-modal-backdrop">
+        <div id="report-modal" class="report-modal">
+            <div class="report-modal-header">
+                <h2>Report a Charging Station</h2>
+                <button id="report-modal-close" class="report-modal-close" aria-label="Close">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="report-form" class="report-form">
+                <div class="report-field">
+                    <label for="report-name">Station Name <span class="required">*</span></label>
+                    <input type="text" id="report-name" name="station_name" required placeholder="e.g. Downtown FastCharge Hub">
+                </div>
+                <div class="report-field-row">
+                    <div class="report-field">
+                        <label for="report-lat">Latitude <span class="required">*</span></label>
+                        <input type="number" id="report-lat" name="latitude" required step="any" min="-90" max="90" placeholder="40.7128">
+                    </div>
+                    <div class="report-field">
+                        <label for="report-lng">Longitude <span class="required">*</span></label>
+                        <input type="number" id="report-lng" name="longitude" required step="any" min="-180" max="180" placeholder="-74.0060">
+                    </div>
+                </div>
+                <p class="report-hint" id="report-map-hint">Or click on the map to set location</p>
+                <div class="report-field">
+                    <label for="report-address">Address</label>
+                    <input type="text" id="report-address" name="address" placeholder="123 Main St, City, State">
+                </div>
+                <div class="report-field-row">
+                    <div class="report-field">
+                        <label for="report-connector">Connector Type</label>
+                        <select id="report-connector" name="connector_type">
+                            <option value="">Select...</option>
+                            <option value="DC Fast">DC Fast</option>
+                            <option value="Tesla Supercharger">Tesla Supercharger</option>
+                            <option value="Level 2">Level 2</option>
+                            <option value="Level 1">Level 1</option>
+                        </select>
+                    </div>
+                    <div class="report-field">
+                        <label for="report-ports">Number of Ports</label>
+                        <input type="number" id="report-ports" name="num_ports" min="1" max="200" placeholder="4">
+                    </div>
+                </div>
+                <div class="report-field">
+                    <label for="report-network">Network</label>
+                    <input type="text" id="report-network" name="network" placeholder="e.g. ChargePoint, Tesla, EVgo">
+                </div>
+                <div class="report-field">
+                    <label for="report-email">Your Email (optional)</label>
+                    <input type="email" id="report-email" name="submitter_email" placeholder="you@example.com">
+                </div>
+                <div class="report-field">
+                    <label for="report-notes">Notes</label>
+                    <textarea id="report-notes" name="notes" rows="3" placeholder="Any additional details..."></textarea>
+                </div>
+                <div id="report-message" class="report-message"></div>
+                <button type="submit" id="report-submit-btn" class="report-submit-btn">Submit Station Report</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Share button on map -->
     <button id="share-btn" class="map-btn share-btn" title="Copy shareable link">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

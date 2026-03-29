@@ -17,6 +17,7 @@ from . import db
 from .stations import load_geojson, router as stations_router
 from .admin import router as admin_router
 from .quality import router as quality_router
+from .submissions import router as submissions_router
 
 logger = logging.getLogger("api_server")
 
@@ -91,6 +92,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(stations_router)
 app.include_router(admin_router)
 app.include_router(quality_router)
+app.include_router(submissions_router)
 
 
 # Health check
