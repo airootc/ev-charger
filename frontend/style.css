@@ -818,7 +818,7 @@ body {
 .report-station-btn {
     position: fixed;
     bottom: 28px;
-    right: 24px;
+    left: 340px;
     z-index: 20;
     display: flex;
     align-items: center;
@@ -1034,7 +1034,7 @@ body {
 @media (max-width: 768px) {
     .report-station-btn {
         bottom: 20px;
-        right: 16px;
+        left: 16px;
         padding: 10px 16px;
         font-size: 13px;
     }
