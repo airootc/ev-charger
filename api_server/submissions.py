@@ -6,12 +6,15 @@ import json
 import gzip
 import logging
 import os
+import re
 import secrets
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 from . import db
@@ -22,6 +25,114 @@ from .stations import load_geojson
 logger = logging.getLogger("api_server.submissions")
 
 router = APIRouter(prefix="/api", tags=["submissions"])
+
+
+# ── Anti-Spam Config ──
+
+_SUBMIT_RATE_LIMIT_PER_IP = 5       # max submissions per IP per window
+_SUBMIT_RATE_WINDOW_SECONDS = 3600  # 1 hour window
+_SUBMIT_COOLDOWN_SECONDS = 30       # min seconds between submissions from same IP
+_DUPLICATE_RADIUS_DEGREES = 0.001   # ~111 meters — reject near-duplicate locations
+_DUPLICATE_WINDOW_SECONDS = 86400   # 24 hours for duplicate check
+
+# Spam patterns in text fields
+_SPAM_URL_PATTERN = re.compile(r'https?://|www\.|\.com/|\.net/|\.org/|bit\.ly|tinyurl', re.IGNORECASE)
+_SPAM_KEYWORDS = re.compile(
+    r'\b(buy now|click here|free money|crypto|casino|viagra|lottery|winner|prize|act now)\b',
+    re.IGNORECASE,
+)
+
+# In-memory rate limiter
+_ip_submissions: dict[str, list[float]] = {}
+_ip_lock = threading.Lock()
+
+
+def _check_rate_limit(ip: str) -> None:
+    """Enforce per-IP submission rate limits."""
+    now = time.time()
+    with _ip_lock:
+        timestamps = _ip_submissions.get(ip, [])
+        # Clean old entries
+        timestamps = [t for t in timestamps if now - t < _SUBMIT_RATE_WINDOW_SECONDS]
+        _ip_submissions[ip] = timestamps
+
+        # Check cooldown (too fast)
+        if timestamps and (now - timestamps[-1]) < _SUBMIT_COOLDOWN_SECONDS:
+            wait = int(_SUBMIT_COOLDOWN_SECONDS - (now - timestamps[-1])) + 1
+            raise HTTPException(
+                status_code=429,
+                detail=f"Please wait {wait} seconds before submitting again.",
+            )
+
+        # Check rate limit
+        if len(timestamps) >= _SUBMIT_RATE_LIMIT_PER_IP:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many submissions. Please try again later.",
+            )
+
+        # Record this submission
+        timestamps.append(now)
+        _ip_submissions[ip] = timestamps
+
+
+def _check_spam_content(submission: "StationSubmission") -> None:
+    """Reject submissions with spammy content."""
+    text_fields = [
+        submission.station_name,
+        submission.network or "",
+        submission.address or "",
+        submission.notes or "",
+    ]
+    combined = " ".join(text_fields)
+
+    # Check for URLs in non-URL fields
+    if _SPAM_URL_PATTERN.search(combined):
+        raise HTTPException(status_code=400, detail="URLs are not allowed in submissions.")
+
+    # Check for spam keywords
+    if _SPAM_KEYWORDS.search(combined):
+        raise HTTPException(status_code=400, detail="Submission contains prohibited content.")
+
+    # Station name too short or too long
+    name = submission.station_name.strip()
+    if len(name) < 3:
+        raise HTTPException(status_code=400, detail="Station name must be at least 3 characters.")
+    if len(name) > 200:
+        raise HTTPException(status_code=400, detail="Station name is too long.")
+
+    # Check for repetitive characters (e.g. "aaaaaaa")
+    if re.match(r'^(.)\1{5,}$', name):
+        raise HTTPException(status_code=400, detail="Invalid station name.")
+
+
+def _check_honeypot(website: Optional[str]) -> None:
+    """Reject if the hidden honeypot field is filled (bots fill all fields)."""
+    if website:
+        logger.warning("Honeypot triggered — bot submission blocked")
+        raise HTTPException(status_code=400, detail="Submission rejected.")
+
+
+def _check_duplicate_location(lat: float, lng: float) -> None:
+    """Reject if a submission with nearly the same coordinates exists recently."""
+    try:
+        with db.get_db() as conn:
+            row = conn.execute(
+                """SELECT COUNT(*) as cnt FROM station_submissions
+                   WHERE status = 'pending'
+                   AND ABS(latitude - ?) < ?
+                   AND ABS(longitude - ?) < ?""",
+                (lat, _DUPLICATE_RADIUS_DEGREES, lng, _DUPLICATE_RADIUS_DEGREES),
+            ).fetchone()
+            if row and row["cnt"] > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A station at this location has already been submitted and is pending review.",
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Duplicate check failed: %s", e)
 
 
 # ── Pydantic Models ──
@@ -36,6 +147,7 @@ class StationSubmission(BaseModel):
     address: Optional[str] = None
     submitter_email: Optional[str] = None
     notes: Optional[str] = None
+    website: Optional[str] = None  # Honeypot field — should always be empty
 
     @field_validator("latitude")
     @classmethod
@@ -55,8 +167,17 @@ class StationSubmission(BaseModel):
 # ── Public Endpoint ──
 
 @router.post("/stations/submit")
-async def submit_station(submission: StationSubmission):
+async def submit_station(submission: StationSubmission, request: Request):
     """Submit a new station report. No authentication required for Phase 1."""
+    # Get client IP
+    ip = request.headers.get("x-forwarded-for", request.client.host or "unknown").split(",")[0].strip()
+
+    # Anti-spam checks
+    _check_honeypot(submission.website)
+    _check_rate_limit(ip)
+    _check_spam_content(submission)
+    _check_duplicate_location(submission.latitude, submission.longitude)
+
     submission_id = f"sub_{secrets.token_hex(8)}"
     now = datetime.now(timezone.utc).isoformat()
 

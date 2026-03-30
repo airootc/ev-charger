@@ -225,6 +225,11 @@
                     <label for="report-notes">Notes</label>
                     <textarea id="report-notes" name="notes" rows="3" placeholder="Any additional details..."></textarea>
                 </div>
+                <!-- Honeypot — hidden from humans, bots fill it -->
+                <div class="report-field" style="position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden;" aria-hidden="true" tabindex="-1">
+                    <label for="report-website">Website</label>
+                    <input type="text" id="report-website" name="website" autocomplete="off" tabindex="-1">
+                </div>
                 <div id="report-message" class="report-message"></div>
                 <button type="submit" id="report-submit-btn" class="report-submit-btn">Submit Station Report</button>
             </form>

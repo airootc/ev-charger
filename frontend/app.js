@@ -958,6 +958,7 @@ async function handleReportSubmit(e) {
     if (form.address.value.trim()) payload.address = form.address.value.trim();
     if (form.submitter_email.value.trim()) payload.submitter_email = form.submitter_email.value.trim();
     if (form.notes.value.trim()) payload.notes = form.notes.value.trim();
+    if (form.website && form.website.value) payload.website = form.website.value;
 
     // Validate
     if (!payload.station_name) {
