@@ -209,6 +209,18 @@ def build_geojson(ownership, zip_centroids, country_centroids):
             centroid = zip_centroids.get(area_code)
             if centroid:
                 lat, lng = centroid
+        elif area_type == "postcode":
+            # AU postcodes — use country centroid as fallback
+            centroid = country_centroids.get(cc or "AU")
+            if centroid:
+                lat, lng = centroid
+                # Skip for now — they'd all cluster at the country centroid
+                skipped += 1
+                continue
+        elif area_type == "city":
+            # CT cities — skip for now (no city→coords lookup)
+            skipped += 1
+            continue
         elif area_type == "country":
             # Try country_code first, then area_code as ISO code
             centroid = country_centroids.get(cc)

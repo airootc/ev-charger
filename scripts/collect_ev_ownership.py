@@ -167,30 +167,33 @@ def collect_us_multistate() -> list[dict]:
     """Collect from other US states that publish EV data on data.gov/Socrata."""
     records = []
 
-    # Connecticut — individual EV registrations
+    # Connecticut — EV registrations via Socrata JSON API (aggregate by city+type)
     try:
         logger.info("  US-CT: Connecticut EV registrations...")
-        url = "https://data.ct.gov/api/views/qxut-mhps/rows.csv?accessType=DOWNLOAD"
-        resp = SESSION.get(url, timeout=120)
+        url = ("https://data.ct.gov/resource/y7ky-5wcz.json"
+               "?$select=primarycustomercity,type,count(*) as cnt"
+               "&$group=primarycustomercity,type"
+               "&$limit=50000")
+        resp = SESSION.get(url, timeout=60)
         if resp.status_code == 200:
-            zip_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0})
-            reader = csv.DictReader(io.StringIO(resp.text))
-            for row in reader:
-                zip_code = (row.get("Zip Code", row.get("ZIP", "")) or "").strip()[:5]
-                if not zip_code or not zip_code.isdigit():
+            city_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0})
+            for row in resp.json():
+                city = (row.get("primarycustomercity", "") or "").strip()
+                if not city:
                     continue
-                ev_type = (row.get("Vehicle Type", row.get("Fuel Type", "")) or "").upper()
-                if "BATTERY" in ev_type or "BEV" in ev_type:
-                    zip_counts[zip_code]["bev"] += 1
-                elif "PLUG" in ev_type or "PHEV" in ev_type:
-                    zip_counts[zip_code]["phev"] += 1
-                zip_counts[zip_code]["total"] += 1
+                ev_type = (row.get("type", "") or "").upper()
+                cnt = int(row.get("cnt", 0) or 0)
+                if ev_type in ("BEV", "BEMC", "FCEV"):
+                    city_counts[city]["bev"] += cnt
+                elif ev_type == "PHEV":
+                    city_counts[city]["phev"] += cnt
+                city_counts[city]["total"] += cnt
 
-            for zip_code, counts in zip_counts.items():
+            for city, counts in city_counts.items():
                 records.append({
-                    "area_type": "zip",
-                    "area_code": zip_code,
-                    "area_name": f"ZIP {zip_code}",
+                    "area_type": "city",
+                    "area_code": f"CT_{city}",
+                    "area_name": f"{city.title()}, CT",
                     "country_code": "US",
                     "state": "CT",
                     "ev_count": counts["total"],
@@ -199,110 +202,56 @@ def collect_us_multistate() -> list[dict]:
                     "source": "ct_dmv",
                     "year": 2025,
                 })
-            logger.info("    -> %d CT ZIP areas, %d EVs", len(zip_counts),
-                         sum(c["total"] for c in zip_counts.values()))
+            logger.info("    -> %d CT cities, %d EVs", len(city_counts),
+                         sum(c["total"] for c in city_counts.values()))
+        else:
+            logger.warning("    CT API returned %d", resp.status_code)
     except Exception as e:
         logger.warning("    CT failed: %s", e)
 
-    # New York — EV registrations (use Socrata JSON API with pagination, CSV is too large)
+    # New York — EV registrations via Socrata JSON API (aggregate by ZIP)
+    # Field: fuel_type = 'ELECTRIC' (uppercase); zip = ZIP code
     try:
-        logger.info("  US-NY: New York EV registrations (paginated API)...")
-        zip_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0})
-        offset = 0
-        batch_size = 50000
-        while True:
-            # Use SoQL to only fetch EV-related rows and aggregate by zip
-            url = (f"https://data.ny.gov/resource/w4pv-hbkt.json"
-                   f"?$limit={batch_size}&$offset={offset}"
-                   f"&$where=fuel_type in('Electric','Plug-In Hybrid','Battery Electric')")
-            resp = SESSION.get(url, timeout=60)
-            if resp.status_code != 200:
-                logger.warning("    NY API returned %d", resp.status_code)
-                break
-            rows = resp.json()
-            if not rows:
-                break
-            for row in rows:
-                zip_code = (row.get("zip_code", row.get("Zip Code", "")) or "").strip()[:5]
-                county = row.get("county", "")
+        logger.info("  US-NY: New York EV registrations (aggregated API)...")
+        # Use SoQL to aggregate by ZIP directly — much faster than fetching all rows
+        url = ("https://data.ny.gov/resource/w4pv-hbkt.json"
+               "?$select=zip,count(*) as cnt"
+               "&$where=fuel_type='ELECTRIC'"
+               "&$group=zip"
+               "&$limit=50000")
+        resp = SESSION.get(url, timeout=120)
+        if resp.status_code == 200:
+            zip_counts = {}
+            for row in resp.json():
+                zip_code = (row.get("zip", "") or "").strip()[:5]
                 if not zip_code or not zip_code.isdigit():
-                    if county:
-                        zip_code = f"NY_{county}"
-                    else:
-                        continue
-                fuel = (row.get("fuel_type", "") or "").upper()
-                if "ELECTRIC" in fuel or "BEV" in fuel or "BATTERY" in fuel:
-                    zip_counts[zip_code]["bev"] += 1
-                elif "PLUG" in fuel or "PHEV" in fuel:
-                    zip_counts[zip_code]["phev"] += 1
-                zip_counts[zip_code]["total"] += 1
-            offset += batch_size
-            if len(rows) < batch_size:
-                break
-            time.sleep(0.5)
+                    continue
+                cnt = int(row.get("cnt", 0) or 0)
+                zip_counts[zip_code] = {"bev": cnt, "phev": 0, "total": cnt}
 
-        for area_code, counts in zip_counts.items():
-            atype = "zip" if area_code.isdigit() else "county"
-            records.append({
-                "area_type": atype,
-                "area_code": area_code,
-                "area_name": f"{'ZIP' if atype == 'zip' else ''} {area_code}",
-                "country_code": "US",
-                "state": "NY",
-                "ev_count": counts["total"],
-                "bev_count": counts["bev"],
-                "phev_count": counts["phev"],
-                "source": "ny_dmv",
-                "year": 2025,
-            })
-        logger.info("    -> %d NY areas, %d EVs", len(zip_counts),
-                     sum(c["total"] for c in zip_counts.values()))
+            for zip_code, counts in zip_counts.items():
+                records.append({
+                    "area_type": "zip",
+                    "area_code": zip_code,
+                    "area_name": f"ZIP {zip_code}",
+                    "country_code": "US",
+                    "state": "NY",
+                    "ev_count": counts["total"],
+                    "bev_count": counts["bev"],
+                    "phev_count": counts["phev"],
+                    "source": "ny_dmv",
+                    "year": 2025,
+                })
+            logger.info("    -> %d NY ZIP areas, %d EVs", len(zip_counts),
+                         sum(c["total"] for c in zip_counts.values()))
+        else:
+            logger.warning("    NY API returned %d: %s", resp.status_code, resp.text[:200])
     except Exception as e:
         logger.warning("    NY failed: %s", e)
 
-    # Colorado — EV registrations
-    try:
-        logger.info("  US-CO: Colorado EV registrations...")
-        url = "https://data.colorado.gov/api/views/jbzf-jkae/rows.csv?accessType=DOWNLOAD"
-        resp = SESSION.get(url, timeout=120)
-        if resp.status_code == 200:
-            county_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0})
-            reader = csv.DictReader(io.StringIO(resp.text))
-            for row in reader:
-                county = (row.get("County", "") or "").strip()
-                if not county:
-                    continue
-                fuel = (row.get("Fuel Type", row.get("Fuel Category", "")) or "").upper()
-                count = 1
-                try:
-                    count = int(row.get("Vehicle Count", row.get("Count", 1)) or 1)
-                except (ValueError, TypeError):
-                    count = 1
-                if "ELECTRIC" in fuel or "BEV" in fuel or "BATTERY" in fuel:
-                    county_counts[county]["bev"] += count
-                    county_counts[county]["total"] += count
-                elif "PLUG" in fuel or "PHEV" in fuel:
-                    county_counts[county]["phev"] += count
-                    county_counts[county]["total"] += count
-
-            for county, counts in county_counts.items():
-                if counts["total"] > 0:
-                    records.append({
-                        "area_type": "county",
-                        "area_code": f"CO_{county}",
-                        "area_name": f"{county} County, CO",
-                        "country_code": "US",
-                        "state": "CO",
-                        "ev_count": counts["total"],
-                        "bev_count": counts["bev"],
-                        "phev_count": counts["phev"],
-                        "source": "co_dmv",
-                        "year": 2025,
-                    })
-            logger.info("    -> %d CO counties, %d EVs", len(county_counts),
-                         sum(c["total"] for c in county_counts.values()))
-    except Exception as e:
-        logger.warning("    CO failed: %s", e)
+    # Colorado — no longer available as open data (Socrata dataset removed)
+    # EValuateCO dashboard exists but has no public API
+    logger.info("  US-CO: Skipped (no public API available)")
 
     return records
 
@@ -392,108 +341,70 @@ def collect_uk() -> list[dict]:
 
 
 def collect_australia() -> list[dict]:
-    """Australia — Registered vehicles by postcode from Data.gov.au."""
-    logger.info("  AU: Fetching registered vehicles by postcode...")
-    # Data.gov.au — Road vehicles by postcode, make, model, fuel type
-    url = "https://data.gov.au/data/dataset/road-vehicles-australia-january-2024/resource/bd5f6657-a9a7-49ce-bdd5-eb35f20ab128"
+    """Australia — Registered vehicles by postcode from Data.gov.au (Jan 2025 census)."""
+    logger.info("  AU: Fetching registered vehicles by postcode (Jan 2025)...")
+    # Road vehicles Australia, January 2025 — by vehicle type, state, postcode, motive power
+    # Columns: vehicle_type, state_abb, registered_postcode, motive_power, no_vehicles
+    download_url = (
+        "https://data.gov.au/data/dataset/f6e0a290-7d47-4b88-ac3b-34824b0ab334/"
+        "resource/0271e694-0f99-4db4-a397-1d2c48f0dcc1/download/"
+        "rva-2025-mvs-vehtype-streg-poareg-mtvpwr-rpc.csv"
+    )
 
-    # Try CKAN API to get download URL
     try:
-        api_url = "https://data.gov.au/api/3/action/resource_show?id=bd5f6657-a9a7-49ce-bdd5-eb35f20ab128"
-        resp = SESSION.get(api_url, timeout=30)
-        if resp.status_code == 200:
-            resource = resp.json().get("result", {})
-            download_url = resource.get("url", "")
-            if download_url:
-                logger.info("    Downloading from: %s", download_url[:80])
-                resp = SESSION.get(download_url, timeout=300)
-                resp.raise_for_status()
+        resp = SESSION.get(download_url, timeout=300)
+        resp.raise_for_status()
 
-                text = resp.content.decode("utf-8", errors="replace")
-                reader = csv.DictReader(io.StringIO(text))
+        text = resp.content.decode("utf-8", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
 
-                postcode_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0})
-                for row in reader:
-                    fuel = (row.get("Fuel Type", row.get("FUEL_TYPE", row.get("fuel_type", ""))) or "").upper()
-                    postcode = (row.get("Postcode", row.get("POSTCODE", row.get("postcode", ""))) or "").strip()
-                    if not postcode:
-                        continue
+        postcode_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0, "state": ""})
+        for row in reader:
+            motive = (row.get("motive_power", "") or "").strip().upper()
+            postcode = (row.get("registered_postcode", "") or "").strip()
+            state = (row.get("state_abb", "") or "").strip()
+            if not postcode:
+                continue
 
-                    count = 1
-                    try:
-                        count = int(row.get("Count", row.get("VEHICLES", row.get("Vehicles", 1))) or 1)
-                    except (ValueError, TypeError):
-                        count = 1
+            try:
+                count = int(row.get("no_vehicles", 0) or 0)
+            except (ValueError, TypeError):
+                count = 0
+            if count <= 0:
+                continue
 
-                    if "ELECTRIC" in fuel or "BEV" in fuel or "BATTERY" in fuel:
-                        postcode_counts[postcode]["bev"] += count
-                        postcode_counts[postcode]["total"] += count
-                    elif "PLUG" in fuel or "PHEV" in fuel:
-                        postcode_counts[postcode]["phev"] += count
-                        postcode_counts[postcode]["total"] += count
+            # "Battery/Fuel-cell electric" = BEV+FCEV
+            # "Hybrid electric" = HEV (non-plug-in) — excluded
+            # AU data does not separate PHEV from HEV
+            if motive == "BATTERY/FUEL-CELL ELECTRIC":
+                postcode_counts[postcode]["bev"] += count
+                postcode_counts[postcode]["total"] += count
 
-                records = []
-                for postcode, counts in postcode_counts.items():
-                    if counts["total"] > 0:
-                        records.append({
-                            "area_type": "postcode",
-                            "area_code": postcode,
-                            "area_name": f"Postcode {postcode}",
-                            "country_code": "AU",
-                            "state": "",
-                            "ev_count": counts["total"],
-                            "bev_count": counts["bev"],
-                            "phev_count": counts["phev"],
-                            "source": "abs_datagov",
-                            "year": 2024,
-                        })
-                logger.info("    -> %d postcodes, %d total EVs", len(records),
-                             sum(r["ev_count"] for r in records))
-                return records
+            if state and not postcode_counts[postcode]["state"]:
+                postcode_counts[postcode]["state"] = state
+
+        records = []
+        for postcode, counts in postcode_counts.items():
+            if counts["total"] > 0:
+                records.append({
+                    "area_type": "postcode",
+                    "area_code": postcode,
+                    "area_name": f"Postcode {postcode}",
+                    "country_code": "AU",
+                    "state": counts["state"],
+                    "ev_count": counts["total"],
+                    "bev_count": counts["bev"],
+                    "phev_count": counts["phev"],
+                    "source": "abs_rva_2025",
+                    "year": 2025,
+                })
+        logger.info("    -> %d postcodes, %d total EVs", len(records),
+                     sum(r["ev_count"] for r in records))
+        return records
+
     except Exception as e:
         logger.error("    AU data.gov.au failed: %s", e)
-
-    # Fallback: try South Australia open data
-    try:
-        logger.info("  AU: Trying South Australia registered vehicles...")
-        url = "https://data.sa.gov.au/data/api/3/action/datastore_search?resource_id=0c34e07f-8a0f-4107-8d0c-e1b4ea5f3eab&limit=50000"
-        resp = SESSION.get(url, timeout=60)
-        if resp.status_code == 200:
-            postcode_counts = defaultdict(lambda: {"bev": 0, "phev": 0, "total": 0})
-            for row in resp.json().get("result", {}).get("records", []):
-                fuel = (str(row.get("Body Type", row.get("Fuel Type", ""))) or "").upper()
-                postcode = str(row.get("Postcode", "")).strip()
-                if not postcode:
-                    continue
-                if "ELECTRIC" in fuel or "BEV" in fuel:
-                    postcode_counts[postcode]["bev"] += 1
-                    postcode_counts[postcode]["total"] += 1
-                elif "PLUG" in fuel or "PHEV" in fuel or "HYBRID" in fuel:
-                    postcode_counts[postcode]["phev"] += 1
-                    postcode_counts[postcode]["total"] += 1
-
-            records = []
-            for postcode, counts in postcode_counts.items():
-                if counts["total"] > 0:
-                    records.append({
-                        "area_type": "postcode",
-                        "area_code": postcode,
-                        "area_name": f"Postcode {postcode}",
-                        "country_code": "AU",
-                        "state": "SA",
-                        "ev_count": counts["total"],
-                        "bev_count": counts["bev"],
-                        "phev_count": counts["phev"],
-                        "source": "sa_gov",
-                        "year": 2024,
-                    })
-            logger.info("    -> %d SA postcodes, %d total EVs", len(records),
-                         sum(r["ev_count"] for r in records))
-            return records
-    except Exception as e:
-        logger.warning("    SA fallback failed: %s", e)
-
-    return []
+        return []
 
 
 def collect_iea_global() -> list[dict]:
