@@ -286,6 +286,35 @@ async def stations_overview():
     return {"type": "FeatureCollection", "features": lite}
 
 
+# ── Gap Analysis Data ──
+
+_gap_data_cache: dict | None = None
+_gap_data_lock = threading.Lock()
+
+
+@router.get("/stations/gap")
+async def stations_gap():
+    """Return the EV supply-demand gap analysis GeoJSON.
+
+    No auth required — serves the pre-built gap analysis data showing
+    EV ownership vs charging station availability by area.
+    """
+    global _gap_data_cache
+    if _gap_data_cache is None:
+        with _gap_data_lock:
+            if _gap_data_cache is None:
+                gap_path = Path(settings.FRONTEND_DIR) / "data" / "ev_gap.geojson"
+                if not gap_path.exists():
+                    return {"type": "FeatureCollection", "features": []}
+                with open(gap_path) as f:
+                    _gap_data_cache = json.load(f)
+                logger.info(
+                    "Loaded gap analysis data: %d features",
+                    len(_gap_data_cache.get("features", [])),
+                )
+    return _gap_data_cache
+
+
 @router.get("/stations")
 async def get_stations(
     request: Request,

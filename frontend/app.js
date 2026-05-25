@@ -48,6 +48,12 @@ let _sourceReady = false;
 let _isLoading = false;
 let _currentBreakdownTab = 'connector';
 
+// Gap analysis state
+let _gapLayerActive = false;
+let _gapDataLoaded = false;
+let _gapData = null;
+let _gapCategoryFilter = 'all';
+
 // AbortController for in-flight station requests (fix #3: race condition prevention)
 let _stationAbortController = null;
 
@@ -167,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupShareExport();
     setupOfflineDetection();
     setupReportStation();
+    setupGapAnalysis();
 
     // Restore filters from hash
     if (hashState.connector) {
@@ -1019,6 +1026,321 @@ function clearReportMessage() {
     const el = document.getElementById('report-message');
     el.textContent = '';
     el.className = 'report-message';
+}
+
+// ── Supply-Demand Gap Analysis ──
+
+const GAP_COLORS = {
+    critical:    '#ef4444',
+    underserved: '#f97316',
+    adequate:    '#eab308',
+    well_served: '#22c55e',
+    no_data:     '#6b7280',
+};
+
+function setupGapAnalysis() {
+    const toggle = document.getElementById('gap-toggle');
+    const catFilter = document.getElementById('gap-category-filter');
+
+    toggle.addEventListener('change', () => {
+        _gapLayerActive = toggle.checked;
+        if (_gapLayerActive) {
+            showGapLayer();
+        } else {
+            hideGapLayer();
+        }
+    });
+
+    catFilter.addEventListener('change', (e) => {
+        _gapCategoryFilter = e.target.value;
+        updateGapFilter();
+    });
+}
+
+async function showGapLayer() {
+    const panel = document.getElementById('gap-panel');
+    const gapLegend = document.getElementById('gap-legend');
+    const stationsLegend = document.getElementById('stations-legend');
+
+    panel.style.display = 'block';
+    gapLegend.style.display = 'block';
+    stationsLegend.style.display = 'none';
+
+    if (!_gapDataLoaded) {
+        showLoading(true);
+        try {
+            const data = await apiFetch(`${API_BASE}/stations/gap`);
+            if (!data || !data.features) {
+                showErrorToast('Gap analysis data not available.');
+                showLoading(false);
+                return;
+            }
+            _gapData = data;
+            _gapDataLoaded = true;
+        } catch (err) {
+            console.error('Failed to load gap data:', err);
+            showErrorToast('Failed to load supply-demand gap data.');
+            showLoading(false);
+            return;
+        }
+        showLoading(false);
+    }
+
+    addGapLayers();
+    updateGapStats();
+    renderGapBarChart();
+
+    // Dim station layers so gap circles stand out
+    if (map.getLayer('ev-points')) {
+        map.setPaintProperty('ev-points', 'circle-opacity', 0.25);
+        map.setPaintProperty('ev-points', 'circle-stroke-opacity', 0.15);
+    }
+    if (map.getLayer('ev-points-glow')) {
+        map.setPaintProperty('ev-points-glow', 'circle-opacity', 0.05);
+    }
+    if (map.getLayer('ev-clusters')) {
+        map.setPaintProperty('ev-clusters', 'circle-opacity', 0.3);
+    }
+}
+
+function hideGapLayer() {
+    const panel = document.getElementById('gap-panel');
+    const gapLegend = document.getElementById('gap-legend');
+    const stationsLegend = document.getElementById('stations-legend');
+
+    panel.style.display = 'none';
+    gapLegend.style.display = 'none';
+    stationsLegend.style.display = 'block';
+
+    removeGapLayers();
+
+    // Restore station layer opacity
+    if (map.getLayer('ev-points')) {
+        map.setPaintProperty('ev-points', 'circle-opacity', 0.9);
+        map.setPaintProperty('ev-points', 'circle-stroke-opacity', 1);
+    }
+    if (map.getLayer('ev-points-glow')) {
+        map.setPaintProperty('ev-points-glow', 'circle-opacity', 0.25);
+    }
+    if (map.getLayer('ev-clusters')) {
+        map.setPaintProperty('ev-clusters', 'circle-opacity', 0.85);
+    }
+}
+
+function addGapLayers() {
+    if (!_gapData || !map) return;
+
+    // Remove existing gap layers if any
+    removeGapLayers();
+
+    map.addSource('ev-gap', {
+        type: 'geojson',
+        data: _gapData,
+    });
+
+    // Outer glow / halo for critical areas
+    map.addLayer({
+        id: 'ev-gap-glow',
+        type: 'circle',
+        source: 'ev-gap',
+        filter: ['==', ['get', 'gap_category'], 'critical'],
+        paint: {
+            'circle-color': GAP_COLORS.critical,
+            'circle-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                2, ['*', ['get', 'display_radius'], 0.6],
+                6, ['*', ['get', 'display_radius'], 1.0],
+                10, ['*', ['get', 'display_radius'], 1.8],
+                14, ['*', ['get', 'display_radius'], 2.5],
+            ],
+            'circle-blur': 0.7,
+            'circle-opacity': 0.2,
+        },
+    });
+
+    // Main circles
+    map.addLayer({
+        id: 'ev-gap-circles',
+        type: 'circle',
+        source: 'ev-gap',
+        paint: {
+            'circle-color': [
+                'match', ['get', 'gap_category'],
+                'critical',    GAP_COLORS.critical,
+                'underserved', GAP_COLORS.underserved,
+                'adequate',    GAP_COLORS.adequate,
+                'well_served', GAP_COLORS.well_served,
+                GAP_COLORS.no_data,
+            ],
+            'circle-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                2, ['*', ['get', 'display_radius'], 0.4],
+                6, ['*', ['get', 'display_radius'], 0.7],
+                10, ['*', ['get', 'display_radius'], 1.2],
+                14, ['*', ['get', 'display_radius'], 1.8],
+            ],
+            'circle-stroke-width': [
+                'interpolate', ['linear'], ['zoom'],
+                2, 0.5, 10, 1.5,
+            ],
+            'circle-stroke-color': [
+                'match', ['get', 'gap_category'],
+                'critical',    '#fca5a5',
+                'underserved', '#fdba74',
+                'adequate',    '#fde047',
+                'well_served', '#86efac',
+                '#9ca3af',
+            ],
+            'circle-opacity': 0.75,
+        },
+    });
+
+    // Click interactions for gap circles
+    map.on('click', 'ev-gap-circles', onGapCircleClick);
+    map.on('mouseenter', 'ev-gap-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'ev-gap-circles', () => { map.getCanvas().style.cursor = ''; });
+
+    updateGapFilter();
+}
+
+function removeGapLayers() {
+    if (!map) return;
+    const layers = ['ev-gap-glow', 'ev-gap-circles'];
+    layers.forEach(id => {
+        if (map.getLayer(id)) map.removeLayer(id);
+    });
+    if (map.getSource('ev-gap')) {
+        map.off('click', 'ev-gap-circles', onGapCircleClick);
+        map.removeSource('ev-gap');
+    }
+}
+
+function onGapCircleClick(e) {
+    const feature = e.features[0];
+    const p = feature.properties;
+    const coords = feature.geometry.coordinates.slice();
+
+    const catLabel = {
+        critical: 'Critical',
+        underserved: 'Underserved',
+        adequate: 'Adequate',
+        well_served: 'Well Served',
+        no_data: 'No Data',
+    };
+    const catColor = GAP_COLORS[p.gap_category] || GAP_COLORS.no_data;
+    const category = catLabel[p.gap_category] || p.gap_category;
+
+    const evCount = (p.ev_count || 0).toLocaleString();
+    const bevCount = (p.bev_count || 0).toLocaleString();
+    const phevCount = (p.phev_count || 0).toLocaleString();
+    const stations = p.stations || 0;
+    const ports = p.ports || 0;
+    const evsPerStation = p.evs_per_station ? Math.round(p.evs_per_station).toLocaleString() : 'N/A';
+    const gapScore = p.gap_score ? p.gap_score.toFixed(1) + '×' : 'N/A';
+
+    let rows = '';
+    rows += `<tr><td>Total EVs</td><td>${evCount}</td></tr>`;
+    rows += `<tr><td>BEV / PHEV</td><td>${bevCount} / ${phevCount}</td></tr>`;
+    rows += `<tr><td>Stations</td><td>${stations}</td></tr>`;
+    rows += `<tr><td>Ports</td><td>${ports}</td></tr>`;
+    if (p.dc_fast_stations > 0) rows += `<tr><td>DC Fast</td><td>${p.dc_fast_stations}</td></tr>`;
+    rows += `<tr><td>EVs/Station</td><td>${evsPerStation}</td></tr>`;
+    rows += `<tr><td>Gap Score</td><td>${gapScore}</td></tr>`;
+    if (p.source) rows += `<tr><td>Source</td><td>${escapeHtml(String(p.source))}</td></tr>`;
+    if (p.year) rows += `<tr><td>Year</td><td>${p.year}</td></tr>`;
+
+    const html = `
+        <div class="popup-content">
+            <h3 class="popup-name">${escapeHtml(p.area_name || p.area_code)}</h3>
+            <div class="popup-address">${escapeHtml(p.state ? p.state + ', ' + p.country_code : p.country_code)}</div>
+            <div class="popup-badges">
+                <span class="popup-badge" style="background:${catColor}22;color:${catColor}">${category}</span>
+                ${p.area_type === 'zip' ? '<span class="popup-badge badge-status">ZIP Code</span>' : ''}
+                ${p.area_type === 'country' ? '<span class="popup-badge badge-power">Country</span>' : ''}
+            </div>
+            <table class="popup-table">${rows}</table>
+        </div>
+    `;
+
+    new maplibregl.Popup({ offset: 15, maxWidth: '320px' })
+        .setLngLat(coords)
+        .setHTML(html)
+        .addTo(map);
+}
+
+function updateGapFilter() {
+    if (!map || !map.getLayer('ev-gap-circles')) return;
+
+    if (_gapCategoryFilter === 'all') {
+        map.setFilter('ev-gap-circles', null);
+        map.setFilter('ev-gap-glow', ['==', ['get', 'gap_category'], 'critical']);
+    } else {
+        map.setFilter('ev-gap-circles', ['==', ['get', 'gap_category'], _gapCategoryFilter]);
+        map.setFilter('ev-gap-glow',
+            _gapCategoryFilter === 'critical'
+                ? ['==', ['get', 'gap_category'], 'critical']
+                : ['literal', false]
+        );
+    }
+}
+
+function updateGapStats() {
+    if (!_gapData) return;
+
+    const features = _gapData.features || [];
+    const totalEvs = features.reduce((s, f) => s + (f.properties.ev_count || 0), 0);
+    const criticalCount = features.filter(f => f.properties.gap_category === 'critical').length;
+
+    document.getElementById('gap-total-evs').textContent = formatCompact(totalEvs);
+    document.getElementById('gap-areas').textContent = features.length.toLocaleString();
+    document.getElementById('gap-critical').textContent = criticalCount.toLocaleString();
+}
+
+function formatCompact(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return n.toLocaleString();
+}
+
+function renderGapBarChart() {
+    if (!_gapData) return;
+
+    const container = document.getElementById('gap-bar-chart');
+    container.innerHTML = '';
+
+    const features = _gapData.features || [];
+    const cats = {};
+    features.forEach(f => {
+        const cat = f.properties.gap_category || 'no_data';
+        cats[cat] = (cats[cat] || 0) + 1;
+    });
+
+    const order = ['critical', 'underserved', 'adequate', 'well_served', 'no_data'];
+    const labels = {
+        critical: 'Critical',
+        underserved: 'Underserved',
+        adequate: 'Adequate',
+        well_served: 'Well Served',
+        no_data: 'No Data',
+    };
+    const max = Math.max(...order.map(c => cats[c] || 0), 1);
+
+    order.forEach(cat => {
+        const count = cats[cat] || 0;
+        if (count === 0) return;
+        const pct = Math.max((count / max) * 100, 2);
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = `
+            <span class="bar-label" title="${labels[cat]}">${labels[cat]}</span>
+            <div class="bar-track">
+                <div class="bar-fill" style="width:${pct}%;background:${GAP_COLORS[cat]}"></div>
+            </div>
+            <span class="bar-count">${count.toLocaleString()}</span>
+        `;
+        container.appendChild(row);
+    });
 }
 
 /**

@@ -121,8 +121,47 @@
             </div>
         </div>
 
+        <!-- Supply-Demand Gap Analysis -->
+        <div class="filter-section gap-section">
+            <div class="gap-header">
+                <h3>Supply-Demand Gap</h3>
+                <label class="gap-toggle">
+                    <input type="checkbox" id="gap-toggle" aria-label="Toggle supply-demand gap overlay">
+                    <span class="gap-toggle-slider"></span>
+                </label>
+            </div>
+            <div id="gap-panel" class="gap-panel" style="display:none">
+                <div class="gap-summary">
+                    <div class="gap-stat">
+                        <span id="gap-total-evs" class="gap-stat-value">0</span>
+                        <span class="gap-stat-label">EVs Tracked</span>
+                    </div>
+                    <div class="gap-stat">
+                        <span id="gap-areas" class="gap-stat-value">0</span>
+                        <span class="gap-stat-label">Areas</span>
+                    </div>
+                    <div class="gap-stat">
+                        <span id="gap-critical" class="gap-stat-value">0</span>
+                        <span class="gap-stat-label">Critical</span>
+                    </div>
+                </div>
+                <div class="gap-bar-chart" id="gap-bar-chart"></div>
+                <div class="gap-filter">
+                    <label class="gap-filter-label">Show:</label>
+                    <select id="gap-category-filter" class="filter-select gap-select">
+                        <option value="all">All Areas</option>
+                        <option value="critical">Critical Only</option>
+                        <option value="underserved">Underserved</option>
+                        <option value="adequate">Adequate</option>
+                        <option value="well_served">Well Served</option>
+                    </select>
+                </div>
+                <p class="gap-benchmark">Benchmark: 20 EVs per public charger</p>
+            </div>
+        </div>
+
         <!-- Legend -->
-        <div class="filter-section legend">
+        <div id="stations-legend" class="filter-section legend">
             <h3>Legend</h3>
             <div class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span> DC Fast Charging</div>
             <div class="legend-item"><span class="legend-dot" style="background:#c0392b"></span> Tesla Supercharger</div>
@@ -130,6 +169,22 @@
             <div class="legend-item"><span class="legend-dot" style="background:#95a5a6"></span> Level 1</div>
             <div class="legend-item"><span class="legend-dot" style="background:#7f8c8d"></span> Unknown</div>
             <div class="legend-cluster"><span class="legend-circle"></span> Cluster (zoom to expand)</div>
+        </div>
+
+        <!-- Gap Legend (shown when gap overlay is active) -->
+        <div id="gap-legend" class="filter-section legend" style="display:none">
+            <h3>Gap Legend</h3>
+            <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Critical (&gt;5× benchmark)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span> Underserved (2.5–5×)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#eab308"></span> Adequate (0.5–2.5×)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> Well Served (&lt;0.5×)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#6b7280"></span> No Station Data</div>
+            <div class="legend-item gap-legend-size">
+                <span class="legend-circle-sm"></span>
+                <span class="legend-circle-md"></span>
+                <span class="legend-circle-lg"></span>
+                <span style="margin-left:4px">Circle = EV count</span>
+            </div>
         </div>
 
         <div class="sidebar-footer">
@@ -253,6 +308,6 @@
         </svg>
     </button>
 
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
 </body>
 </html>
