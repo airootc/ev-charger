@@ -664,7 +664,7 @@ def compute_gap_analysis(ownership: list[dict], station_counts: dict) -> list[di
             "evs_per_port": evs_per_port,
             "gap_score": gap_score,
             "gap_category": (
-                "critical" if gap_score is None and ev_count > 100 else
+                "critical" if gap_score is None and ev_count > 0 else
                 "critical" if gap_score and gap_score > 5 else
                 "underserved" if gap_score and gap_score > 2.5 else
                 "adequate" if gap_score and gap_score >= 0.5 else

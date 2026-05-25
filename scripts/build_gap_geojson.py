@@ -26,6 +26,7 @@ OWNERSHIP_PATH = FRONTEND_DATA / "ev_ownership.json"
 STATIONS_PATH = FRONTEND_DATA / "ev_stations.geojson.gz"
 OUTPUT_PATH = FRONTEND_DATA / "ev_gap.geojson"
 ZIP_CENTROIDS_CSV = SCRIPT_DIR / "us_zip_centroids.csv"
+AU_POSTCODE_CSV = SCRIPT_DIR / "au_postcode_centroids.csv"
 
 # Hardcoded country centroids (ISO 2-letter → [lat, lng])
 # Used as fallback when no stations exist for a country
@@ -123,19 +124,46 @@ def load_zip_centroids_csv():
     return centroids
 
 
+def _load_au_postcode_csv():
+    """Load Australian postcode centroids from the bundled CSV file."""
+    import csv
+    centroids = {}
+    if not AU_POSTCODE_CSV.exists():
+        log.warning("AU postcode centroids CSV not found: %s", AU_POSTCODE_CSV)
+        return centroids
+    with open(AU_POSTCODE_CSV) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            pc = (row.get("POSTCODE", "") or "").strip()
+            lat = (row.get("LAT", "") or "").strip()
+            lng = (row.get("LNG", "") or "").strip()
+            if pc and lat and lng:
+                try:
+                    centroids[f"AU_{pc}"] = [float(lat), float(lng)]
+                except ValueError:
+                    pass
+    log.info("  AU postcode centroids from CSV: %d", len(centroids))
+    return centroids
+
+
 def load_station_centroids():
     """
     Read the compressed station GeoJSON and build centroid lookups:
       - zip_centroids: { "98034": [lat, lng], ... }  (CSV + station-derived)
       - country_centroids: { "DE": [lat, lng], ... }
+      - postcode_centroids: { "AU_2000": [lat, lng], ... }  (non-US postcodes)
+      - uk_area_centroids: { "outcode_prefix": [lat, lng], ... }  (UK postcode areas)
     """
-    # Start with CSV-based ZIP centroids (33K+ US ZIPs)
+    # Start with CSV-based centroids
     zip_centroids = load_zip_centroids_csv()
+    au_postcode_centroids = _load_au_postcode_csv()
 
     log.info("Loading station centroids from %s ...", STATIONS_PATH.name)
 
     zip_acc = {}    # zip -> {lat_sum, lng_sum, count}
     cc_acc = {}     # country_code -> {lat_sum, lng_sum, count}
+    postcode_acc = {}  # "CC_postcode" -> {lat_sum, lng_sum, count}
+    uk_area_acc = {}   # outcode (e.g. "SW1") -> {lat_sum, lng_sum, count}
 
     with gzip.open(STATIONS_PATH, "rt", encoding="utf-8") as f:
         data = json.load(f)
@@ -158,6 +186,26 @@ def load_station_centroids():
             zip_acc[z][1] += lng
             zip_acc[z][2] += 1
 
+        # AU postcode centroids from station positions
+        elif postal and cc == "AU":
+            key = f"AU_{postal.strip()[:4]}"
+            if key not in postcode_acc:
+                postcode_acc[key] = [0.0, 0.0, 0]
+            postcode_acc[key][0] += lat
+            postcode_acc[key][1] += lng
+            postcode_acc[key][2] += 1
+
+        # UK postcode area centroids (outcode = first part before space)
+        if postal and cc == "GB":
+            # Extract outcode: "SW1A 1AA" → "SW1A", "EC2R 8AH" → "EC2R"
+            outcode = postal.split()[0].strip() if " " in postal else postal[:4].strip()
+            if outcode:
+                if outcode not in uk_area_acc:
+                    uk_area_acc[outcode] = [0.0, 0.0, 0]
+                uk_area_acc[outcode][0] += lat
+                uk_area_acc[outcode][1] += lng
+                uk_area_acc[outcode][2] += 1
+
         # Country centroids from station positions
         if cc and len(cc) == 2:
             if cc not in cc_acc:
@@ -170,6 +218,31 @@ def load_station_centroids():
     for z, (lat_s, lng_s, n) in zip_acc.items():
         zip_centroids[z] = [round(lat_s / n, 5), round(lng_s / n, 5)]
 
+    # UK outcode centroids + city-level centroids for LA matching
+    uk_outcode_centroids = {}
+    for oc, (lat_s, lng_s, n) in uk_area_acc.items():
+        uk_outcode_centroids[oc] = [round(lat_s / n, 5), round(lng_s / n, 5)]
+
+    # Also build UK city centroids from station city names
+    uk_city_acc = {}
+    for feat in data.get("features", []):
+        coords = feat.get("geometry", {}).get("coordinates", [])
+        if len(coords) < 2:
+            continue
+        lng, lat = coords[0], coords[1]
+        props = feat.get("properties", {})
+        cc = props.get("country_code", "") or ""
+        city = (props.get("city", "") or "").strip().lower()
+        if cc == "GB" and city:
+            if city not in uk_city_acc:
+                uk_city_acc[city] = [0.0, 0.0, 0]
+            uk_city_acc[city][0] += lat
+            uk_city_acc[city][1] += lng
+            uk_city_acc[city][2] += 1
+    for city, (lat_s, lng_s, n) in uk_city_acc.items():
+        uk_outcode_centroids[f"city_{city}"] = [round(lat_s / n, 5), round(lng_s / n, 5)]
+    log.info("  UK city centroids (for LA matching): %d", len(uk_city_acc))
+
     station_cc = {}
     for cc, (lat_s, lng_s, n) in cc_acc.items():
         station_cc[cc] = [round(lat_s / n, 5), round(lng_s / n, 5)]
@@ -178,18 +251,27 @@ def load_station_centroids():
     merged_cc = dict(COUNTRY_CENTROIDS)
     merged_cc.update(station_cc)  # station-derived overrides hardcoded
 
+    # Station-derived AU postcodes override CSV-based ones
+    for key, (lat_s, lng_s, n) in postcode_acc.items():
+        au_postcode_centroids[key] = [round(lat_s / n, 5), round(lng_s / n, 5)]
+
     log.info("  ZIP centroids total: %d", len(zip_centroids))
+    log.info("  AU postcode centroids: %d", len(au_postcode_centroids))
+    log.info("  UK outcode centroids: %d", len(uk_outcode_centroids))
     log.info("  Country centroids: %d (%d from stations, %d hardcoded fallback)",
              len(merged_cc), len(station_cc), len(COUNTRY_CENTROIDS))
 
-    return zip_centroids, merged_cc
+    return zip_centroids, merged_cc, au_postcode_centroids, uk_outcode_centroids
 
 
-def build_geojson(ownership, zip_centroids, country_centroids):
+def build_geojson(ownership, zip_centroids, country_centroids,
+                  au_postcode_centroids=None, uk_outcode_centroids=None):
     """Convert ownership areas to GeoJSON features with coordinates."""
+    au_postcode_centroids = au_postcode_centroids or {}
+    uk_outcode_centroids = uk_outcode_centroids or {}
     features = []
     skipped = 0
-    by_type = {"zip": 0, "country": 0, "local_authority": 0, "state": 0}
+    by_type = {"zip": 0, "country": 0, "local_authority": 0, "postcode": 0, "city": 0, "state": 0}
 
     for area in ownership.get("areas", []):
         area_type = area.get("area_type", "")
@@ -210,13 +292,11 @@ def build_geojson(ownership, zip_centroids, country_centroids):
             if centroid:
                 lat, lng = centroid
         elif area_type == "postcode":
-            # AU postcodes — use country centroid as fallback
-            centroid = country_centroids.get(cc or "AU")
+            # AU postcodes — look up from station-derived centroids
+            key = f"{cc or 'AU'}_{area_code}"
+            centroid = au_postcode_centroids.get(key)
             if centroid:
                 lat, lng = centroid
-                # Skip for now — they'd all cluster at the country centroid
-                skipped += 1
-                continue
         elif area_type == "city":
             # CT cities — skip for now (no city→coords lookup)
             skipped += 1
@@ -229,14 +309,12 @@ def build_geojson(ownership, zip_centroids, country_centroids):
             if centroid:
                 lat, lng = centroid
         elif area_type == "local_authority":
-            # UK local authorities — use country centroid as approximate
-            # (individual LA geocoding would require a separate lookup)
-            centroid = country_centroids.get(cc or "GB")
+            # UK local authorities — try to match via area_code as outcode
+            # area_code might be an ONS code; try area_name-based matching
+            # For now, try matching the area_code directly as a UK outcode
+            centroid = _find_uk_la_centroid(area_code, area_name, uk_outcode_centroids)
             if centroid:
                 lat, lng = centroid
-                # Skip UK LAs for now — they'd all cluster at the same point
-                skipped += 1
-                continue
         elif area_type == "state":
             centroid = country_centroids.get(cc or "US")
             if centroid:
@@ -297,6 +375,37 @@ def build_geojson(ownership, zip_centroids, country_centroids):
     }
 
 
+def _find_uk_la_centroid(area_code, area_name, uk_outcode_centroids):
+    """Try to find coordinates for a UK local authority.
+
+    Strategy: match LA name against known UK outcode centroids.
+    Many station cities overlap with LA/borough names.
+    Returns [lat, lng] or None.
+    """
+    # Direct match — LA name might be a city with station data
+    name_lower = area_name.lower().strip().rstrip(" -")
+    for outcode, centroid in uk_outcode_centroids.items():
+        # outcode is like "SW1A", "EC2R" — not useful for name matching
+        pass
+
+    # We can't match outcode strings to LA names directly.
+    # Instead, use the _uk_city_centroids lookup built in load_station_centroids.
+    # This is injected via the uk_outcode_centroids dict which we repurpose
+    # to also carry city-level centroids (prefixed with "city_").
+    city_key = f"city_{name_lower}"
+    if city_key in uk_outcode_centroids:
+        return uk_outcode_centroids[city_key]
+
+    # Try partial match — e.g. "Bromley" in "London Borough of Bromley"
+    for key, centroid in uk_outcode_centroids.items():
+        if key.startswith("city_"):
+            city = key[5:]
+            if city in name_lower or name_lower in city:
+                return centroid
+
+    return None
+
+
 def _display_radius(ev_count, area_type):
     """Compute a display radius for the circle marker (in pixels at zoom ~10)."""
     import math
@@ -325,10 +434,10 @@ def main():
         ownership = json.load(f)
     log.info("Loaded %d ownership areas", len(ownership.get("areas", [])))
 
-    zip_centroids, cc_centroids = load_station_centroids()
+    zip_centroids, cc_centroids, au_postcodes, uk_outcodes = load_station_centroids()
 
     # Build GeoJSON
-    geojson = build_geojson(ownership, zip_centroids, cc_centroids)
+    geojson = build_geojson(ownership, zip_centroids, cc_centroids, au_postcodes, uk_outcodes)
     n_features = len(geojson["features"])
 
     # Write output
