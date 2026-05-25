@@ -1230,22 +1230,29 @@ function onGapCircleClick(e) {
     const catColor = GAP_COLORS[p.gap_category] || GAP_COLORS.no_data;
     const category = catLabel[p.gap_category] || p.gap_category;
 
-    const evCount = (p.ev_count || 0).toLocaleString();
-    const bevCount = (p.bev_count || 0).toLocaleString();
-    const phevCount = (p.phev_count || 0).toLocaleString();
-    const stations = p.stations || 0;
-    const ports = p.ports || 0;
-    const evsPerStation = p.evs_per_station ? Math.round(p.evs_per_station).toLocaleString() : 'N/A';
-    const gapScore = p.gap_score ? p.gap_score.toFixed(1) + '×' : 'N/A';
+    const evCount = (Number(p.ev_count) || 0).toLocaleString();
+    const bevCount = (Number(p.bev_count) || 0).toLocaleString();
+    const phevCount = (Number(p.phev_count) || 0).toLocaleString();
+    const stations = Number(p.stations) || 0;
+    const ports = Number(p.ports) || 0;
+    const evsPerStation = p.evs_per_station ? Math.round(Number(p.evs_per_station)).toLocaleString() : 'N/A';
+    const gapScore = p.gap_score ? Number(p.gap_score).toFixed(1) + '×' : (stations === 0 ? '∞' : 'N/A');
+
+    // Area type badge
+    const typeLabels = {
+        zip: 'ZIP Code', country: 'Country', postcode: 'Postcode',
+        local_authority: 'Local Authority', state: 'State', city: 'City',
+    };
+    const typeBadge = typeLabels[p.area_type] || p.area_type;
 
     let rows = '';
-    rows += `<tr><td>Total EVs</td><td>${evCount}</td></tr>`;
-    rows += `<tr><td>BEV / PHEV</td><td>${bevCount} / ${phevCount}</td></tr>`;
-    rows += `<tr><td>Stations</td><td>${stations}</td></tr>`;
-    rows += `<tr><td>Ports</td><td>${ports}</td></tr>`;
-    if (p.dc_fast_stations > 0) rows += `<tr><td>DC Fast</td><td>${p.dc_fast_stations}</td></tr>`;
+    rows += `<tr><td>Total EVs</td><td><strong>${evCount}</strong></td></tr>`;
+    if (Number(p.bev_count) || Number(p.phev_count)) rows += `<tr><td>BEV / PHEV</td><td>${bevCount} / ${phevCount}</td></tr>`;
+    rows += `<tr><td>Stations</td><td>${stations === 0 ? '<span style="color:#ef4444">None</span>' : stations.toLocaleString()}</td></tr>`;
+    if (ports > 0) rows += `<tr><td>Ports</td><td>${ports.toLocaleString()}</td></tr>`;
+    if (Number(p.dc_fast_stations) > 0) rows += `<tr><td>DC Fast</td><td>${Number(p.dc_fast_stations).toLocaleString()}</td></tr>`;
     rows += `<tr><td>EVs/Station</td><td>${evsPerStation}</td></tr>`;
-    rows += `<tr><td>Gap Score</td><td>${gapScore}</td></tr>`;
+    rows += `<tr><td>Gap Score</td><td><strong style="color:${catColor}">${gapScore}</strong></td></tr>`;
     if (p.source) rows += `<tr><td>Source</td><td>${escapeHtml(String(p.source))}</td></tr>`;
     if (p.year) rows += `<tr><td>Year</td><td>${p.year}</td></tr>`;
 
@@ -1255,8 +1262,7 @@ function onGapCircleClick(e) {
             <div class="popup-address">${escapeHtml(p.state ? p.state + ', ' + p.country_code : p.country_code)}</div>
             <div class="popup-badges">
                 <span class="popup-badge" style="background:${catColor}22;color:${catColor}">${category}</span>
-                ${p.area_type === 'zip' ? '<span class="popup-badge badge-status">ZIP Code</span>' : ''}
-                ${p.area_type === 'country' ? '<span class="popup-badge badge-power">Country</span>' : ''}
+                <span class="popup-badge badge-status">${typeBadge}</span>
             </div>
             <table class="popup-table">${rows}</table>
         </div>
