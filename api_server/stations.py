@@ -95,6 +95,40 @@ _index: GridSpatialIndex | None = None
 _metadata: dict = {}
 
 
+def _compact_feature(feature: dict) -> dict:
+    """Reduce memory footprint of a single GeoJSON feature.
+
+    - Interns highly-repeated string property values (country_code, network, etc.)
+    - Converts Decimal → float (ijson returns Decimal by default)
+    - Rounds coordinates to 5 decimal places (~1m precision)
+    """
+    import sys
+    from decimal import Decimal
+
+    _empty = sys.intern("")
+
+    props = feature.get("properties", {})
+    compacted = {}
+    for k, v in props.items():
+        k = sys.intern(k)
+        if isinstance(v, str):
+            v = sys.intern(v) if v else _empty
+        elif isinstance(v, Decimal):
+            v = float(v)
+        compacted[k] = v
+
+    # Round coordinates and ensure float type
+    coords = feature.get("geometry", {}).get("coordinates", [])
+    if len(coords) >= 2:
+        coords = [round(float(coords[0]), 5), round(float(coords[1]), 5)]
+
+    return {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": coords},
+        "properties": compacted,
+    }
+
+
 def _load_features(path: str) -> list[dict]:
     """Load GeoJSON features from *path*.
 
@@ -105,45 +139,49 @@ def _load_features(path: str) -> list[dict]:
     use ``ijson`` for streaming parsing which keeps peak memory lower.
     Falls back to ``json.load`` when ijson is unavailable.
     """
-    # Handle gzip-compressed files
-    if path.endswith(".gz"):
-        logger.info("Loading compressed file: %s", path)
-        with gzip.open(path, "rt", encoding="utf-8") as fh:
+    features: list[dict] = []
+
+    # Determine actual path (handle .gz auto-detection)
+    actual_path = path
+    is_gz = path.endswith(".gz")
+    if not is_gz and not os.path.exists(path) and os.path.exists(path + ".gz"):
+        actual_path = path + ".gz"
+        is_gz = True
+
+    # Try streaming parse with ijson — keeps peak memory low by never
+    # holding the full raw JSON dict tree.  Essential for fitting 304K
+    # features into Render's 512 MB free tier.
+    try:
+        import ijson  # type: ignore[import-untyped]
+
+        logger.info("Streaming %s with ijson...", os.path.basename(actual_path))
+        opener = gzip.open(actual_path, "rb") if is_gz else open(actual_path, "rb")
+        with opener as fh:
+            for raw_feature in ijson.items(fh, "features.item"):
+                features.append(_compact_feature(raw_feature))
+        logger.info("Streamed and compacted %d features", len(features))
+        return features
+    except ImportError:
+        logger.warning("ijson not installed; falling back to json.load")
+
+    # Fallback: json.load (higher peak memory)
+    logger.info("Loading %s with json.load...", os.path.basename(actual_path))
+    if is_gz:
+        with gzip.open(actual_path, "rt", encoding="utf-8") as fh:
             geojson = json.load(fh)
-        return geojson.get("features", [])
-
-    # Auto-detect compressed version
-    gz_path = path + ".gz"
-    if not os.path.exists(path) and os.path.exists(gz_path):
-        logger.info("Using compressed file: %s", gz_path)
-        with gzip.open(gz_path, "rt", encoding="utf-8") as fh:
+    else:
+        with open(actual_path, "r", encoding="utf-8") as fh:
             geojson = json.load(fh)
-        return geojson.get("features", [])
 
-    file_size = os.path.getsize(path)
+    raw_features = geojson.get("features", [])
+    del geojson
 
-    if file_size > _LARGE_FILE_THRESHOLD_BYTES:
-        try:
-            import ijson  # type: ignore[import-untyped]
-
-            logger.info(
-                "File size %d MB exceeds threshold; using ijson streaming parser",
-                file_size // (1024 * 1024),
-            )
-            features: list[dict] = []
-            with open(path, "rb") as fh:
-                for feature in ijson.items(fh, "features.item"):
-                    features.append(feature)
-            return features
-        except ImportError:
-            logger.warning(
-                "ijson not installed; falling back to json.load for %d MB file",
-                file_size // (1024 * 1024),
-            )
-
-    with open(path, "r", encoding="utf-8") as fh:
-        geojson = json.load(fh)
-    return geojson.get("features", [])
+    # Compact in-place to reduce peak memory
+    logger.info("Compacting %d features in-place...", len(raw_features))
+    for i in range(len(raw_features)):
+        raw_features[i] = _compact_feature(raw_features[i])
+    import gc; gc.collect()
+    return raw_features
 
 
 def load_geojson() -> int:
