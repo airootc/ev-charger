@@ -25,19 +25,32 @@ logger = logging.getLogger("api_server")
 _KEY_LOG_PREFIX_LENGTH = 8
 
 
+import threading
+
+_data_ready = threading.Event()
+
+
+def _background_load():
+    """Load heavy data in a background thread so the health check can respond immediately."""
+    try:
+        logger.info("Loading GeoJSON data (background)...")
+        count = load_geojson()
+        logger.info("Loaded %d stations into spatial index", count)
+    except Exception:
+        logger.exception("Failed to load GeoJSON data")
+    finally:
+        _data_ready.set()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown logic."""
     # Validate configuration before anything else
     settings.validate()
 
-    # Startup
+    # Startup — fast operations first so the health check can respond
     logger.info("Initializing database...")
     db.init_db()
-
-    logger.info("Loading GeoJSON data...")
-    count = load_geojson()
-    logger.info("Loaded %d stations into spatial index", count)
 
     logger.info("Pruning old request log entries...")
     pruned = db.prune_request_log(max_age_days=30)
@@ -59,6 +72,11 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info("Frontend API key already exists (prefix: %s)", frontend_keys[0]["key_prefix"])
+
+    # Load station data in background — lets the health check respond immediately
+    # while the ~150 MB GeoJSON decompresses and indexes
+    loader = threading.Thread(target=_background_load, daemon=True)
+    loader.start()
 
     yield
 
@@ -95,10 +113,15 @@ app.include_router(quality_router)
 app.include_router(submissions_router)
 
 
-# Health check
+# Health check — always responds 200 so Render doesn't kill us during data loading
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "ev-charging-api"}
+    ready = _data_ready.is_set()
+    return {
+        "status": "ok" if ready else "loading",
+        "service": "ev-charging-api",
+        "data_ready": ready,
+    }
 
 
 # Block direct access to the GeoJSON data file
