@@ -522,6 +522,21 @@ body {
     gap: 4px;
 }
 
+.gap-bar-clickable {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.15s;
+}
+.gap-bar-clickable:hover {
+    background: rgba(255,255,255,0.06);
+}
+.gap-bar-active {
+    background: rgba(249, 115, 22, 0.12);
+    outline: 1px solid rgba(249, 115, 22, 0.3);
+}
+
 /* Legend size circles */
 .gap-legend-size {
     display: flex;

@@ -1054,6 +1054,8 @@ function setupGapAnalysis() {
     catFilter.addEventListener('change', (e) => {
         _gapCategoryFilter = e.target.value;
         updateGapFilter();
+        renderGapBarChart();
+        renderTopCriticalAreas();
     });
 }
 
@@ -1360,7 +1362,8 @@ function renderGapBarChart() {
         if (count === 0) return;
         const pct = Math.max((count / max) * 100, 2);
         const row = document.createElement('div');
-        row.className = 'bar-row';
+        row.className = 'bar-row gap-bar-clickable';
+        if (_gapCategoryFilter === cat) row.classList.add('gap-bar-active');
         row.innerHTML = `
             <span class="bar-label" title="${labels[cat]}">${labels[cat]}</span>
             <div class="bar-track">
@@ -1368,6 +1371,14 @@ function renderGapBarChart() {
             </div>
             <span class="bar-count">${count.toLocaleString()}</span>
         `;
+        row.addEventListener('click', () => {
+            // Toggle: click active bar to reset, otherwise set filter
+            _gapCategoryFilter = (_gapCategoryFilter === cat) ? 'all' : cat;
+            document.getElementById('gap-category-filter').value = _gapCategoryFilter;
+            updateGapFilter();
+            renderGapBarChart();
+            renderTopCriticalAreas();
+        });
         container.appendChild(row);
     });
 }
@@ -1379,20 +1390,42 @@ function renderTopCriticalAreas() {
     container.innerHTML = '';
 
     const features = _gapData.features || [];
-    // Get areas with stations > 0 sorted by gap_score (highest = most underserved)
-    const withStations = features
-        .filter(f => Number(f.properties.ev_count) > 50 && Number(f.properties.stations) > 0 && f.properties.gap_score)
-        .sort((a, b) => (Number(b.properties.gap_score) || 0) - (Number(a.properties.gap_score) || 0))
+
+    // Respect the active gap category filter
+    const filtered = _gapCategoryFilter === 'all'
+        ? features
+        : features.filter(f => f.properties.gap_category === _gapCategoryFilter);
+
+    // For "well_served" and "adequate", sort ascending (lowest gap = best served).
+    // For "critical", "underserved", and "all", sort descending (highest gap = most underserved).
+    const ascending = _gapCategoryFilter === 'well_served' || _gapCategoryFilter === 'adequate';
+
+    // Use a lower EV threshold for well-served/adequate (these tend to have smaller counts)
+    const minEvs = ascending ? 1 : 50;
+
+    const ranked = filtered
+        .filter(f => Number(f.properties.ev_count) > minEvs && Number(f.properties.stations) > 0 && f.properties.gap_score)
+        .sort((a, b) => ascending
+            ? (Number(a.properties.gap_score) || 0) - (Number(b.properties.gap_score) || 0)
+            : (Number(b.properties.gap_score) || 0) - (Number(a.properties.gap_score) || 0))
         .slice(0, 8);
 
-    if (withStations.length === 0) return;
+    if (ranked.length === 0) return;
+
+    const headingLabels = {
+        all: 'Most Underserved Areas',
+        critical: 'Top Critical Areas',
+        underserved: 'Top Underserved Areas',
+        adequate: 'Best Adequate Areas',
+        well_served: 'Best Served Areas',
+    };
 
     const heading = document.createElement('div');
     heading.className = 'top-areas-heading';
-    heading.textContent = 'Most Underserved Areas';
+    heading.textContent = headingLabels[_gapCategoryFilter] || 'Top Areas';
     container.appendChild(heading);
 
-    withStations.forEach((f, i) => {
+    ranked.forEach((f, i) => {
         const p = f.properties;
         const name = p.area_name || p.area_code;
         const evs = (Number(p.ev_count) || 0).toLocaleString();
