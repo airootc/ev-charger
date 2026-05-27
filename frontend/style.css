@@ -557,6 +557,71 @@ body {
     display: inline-block;
 }
 
+/* ── Gap hover popup ── */
+.gap-hover-popup .maplibregl-popup-content {
+    background: rgba(30, 30, 30, 0.92);
+    color: #e5e5e5;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    max-width: 260px;
+    line-height: 1.4;
+    pointer-events: none;
+}
+.gap-hover-popup .maplibregl-popup-tip {
+    border-top-color: rgba(30, 30, 30, 0.92);
+}
+
+/* ── Top critical areas ── */
+.gap-top-areas {
+    margin-top: 8px;
+}
+.top-areas-heading {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #ef4444;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.top-area-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.top-area-row:hover {
+    background: rgba(255,255,255,0.08);
+}
+.top-area-rank {
+    font-size: 11px;
+    font-weight: 700;
+    color: #ef4444;
+    min-width: 16px;
+    text-align: center;
+}
+.top-area-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.top-area-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: #e5e5e5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.top-area-detail {
+    font-size: 10px;
+    color: #9ca3af;
+}
+
 /* ── Legend ── */
 .legend {
     margin-top: auto;

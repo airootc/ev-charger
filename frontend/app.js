@@ -1089,6 +1089,7 @@ async function showGapLayer() {
     addGapLayers();
     updateGapStats();
     renderGapBarChart();
+    renderTopCriticalAreas();
 
     // Dim station layers so gap circles stand out
     if (map.getLayer('ev-points')) {
@@ -1197,8 +1198,30 @@ function addGapLayers() {
 
     // Click interactions for gap circles
     map.on('click', 'ev-gap-circles', onGapCircleClick);
-    map.on('mouseenter', 'ev-gap-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'ev-gap-circles', () => { map.getCanvas().style.cursor = ''; });
+
+    // Hover tooltip — lightweight preview before clicking
+    const _gapHoverPopup = new maplibregl.Popup({
+        closeButton: false, closeOnClick: false,
+        offset: 12, className: 'gap-hover-popup',
+    });
+    map.on('mouseenter', 'ev-gap-circles', (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+        const f = e.features[0];
+        const p = f.properties;
+        const catLabels = { critical: 'Critical', underserved: 'Underserved', adequate: 'Adequate', well_served: 'Well Served' };
+        const cat = catLabels[p.gap_category] || p.gap_category;
+        const evs = (Number(p.ev_count) || 0).toLocaleString();
+        const stations = Number(p.stations) || 0;
+        const stationText = stations === 0 ? '<span style="color:#ef4444">None</span>' : stations.toLocaleString();
+        _gapHoverPopup
+            .setLngLat(f.geometry.coordinates)
+            .setHTML(`<strong>${escapeHtml(p.area_name || p.area_code)}</strong><br>${evs} EVs · ${stationText} stations · <em>${cat}</em>`)
+            .addTo(map);
+    });
+    map.on('mouseleave', 'ev-gap-circles', () => {
+        map.getCanvas().style.cursor = '';
+        _gapHoverPopup.remove();
+    });
 
     updateGapFilter();
 }
@@ -1294,7 +1317,7 @@ function updateGapStats() {
     if (!_gapData) return;
 
     const features = _gapData.features || [];
-    const totalEvs = features.reduce((s, f) => s + (f.properties.ev_count || 0), 0);
+    const totalEvs = features.reduce((s, f) => s + (Number(f.properties.ev_count) || 0), 0);
     const criticalCount = features.filter(f => f.properties.gap_category === 'critical').length;
 
     document.getElementById('gap-total-evs').textContent = formatCompact(totalEvs);
@@ -1345,6 +1368,47 @@ function renderGapBarChart() {
             </div>
             <span class="bar-count">${count.toLocaleString()}</span>
         `;
+        container.appendChild(row);
+    });
+}
+
+function renderTopCriticalAreas() {
+    if (!_gapData) return;
+    const container = document.getElementById('gap-top-areas');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const features = _gapData.features || [];
+    // Get areas with stations > 0 sorted by gap_score (highest = most underserved)
+    const withStations = features
+        .filter(f => Number(f.properties.ev_count) > 50 && Number(f.properties.stations) > 0 && f.properties.gap_score)
+        .sort((a, b) => (Number(b.properties.gap_score) || 0) - (Number(a.properties.gap_score) || 0))
+        .slice(0, 8);
+
+    if (withStations.length === 0) return;
+
+    const heading = document.createElement('div');
+    heading.className = 'top-areas-heading';
+    heading.textContent = 'Most Underserved Areas';
+    container.appendChild(heading);
+
+    withStations.forEach((f, i) => {
+        const p = f.properties;
+        const name = p.area_name || p.area_code;
+        const evs = (Number(p.ev_count) || 0).toLocaleString();
+        const ratio = Number(p.gap_score).toFixed(1);
+        const row = document.createElement('div');
+        row.className = 'top-area-row';
+        row.innerHTML = `
+            <span class="top-area-rank">${i + 1}</span>
+            <div class="top-area-info">
+                <span class="top-area-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+                <span class="top-area-detail">${evs} EVs · ${ratio}× benchmark</span>
+            </div>
+        `;
+        row.addEventListener('click', () => {
+            map.flyTo({ center: f.geometry.coordinates, zoom: 10, duration: 1500 });
+        });
         container.appendChild(row);
     });
 }
