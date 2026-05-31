@@ -161,7 +161,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }), 'top-right');
     map.addControl(new maplibregl.ScaleControl(), 'bottom-right');
 
+    // Use multiple strategies to detect when the map is ready — Chrome
+    // throttles background tabs so the 'load' event may never fire there.
     map.on('load', () => initApp(hashState));
+    map.on('style.load', () => initApp(hashState));
+    // Polling fallback: check every 500ms for up to 30s
+    const _readyPoll = setInterval(() => {
+        if (_sourceReady) { clearInterval(_readyPoll); return; }
+        if (map.isStyleLoaded()) { clearInterval(_readyPoll); initApp(hashState); }
+    }, 500);
 
     setupFilters();
     setupMobile();
