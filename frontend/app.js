@@ -165,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initApp(hashState);
     } else {
         map.on('style.load', () => initApp(hashState));
-        setTimeout(() => { if (!_sourceReady) initApp(hashState); }, 3000);
     }
 
     setupFilters();
@@ -242,6 +241,12 @@ function injectRuntimeUI() {
 
 async function initApp(hashState) {
     if (_sourceReady) return;
+
+    // Ensure map style is fully loaded before adding any sources/layers
+    if (!map.isStyleLoaded()) {
+        await new Promise(resolve => map.once('style.load', resolve));
+    }
+
     await loadMeta();
 
     // Load global overview first so dots appear immediately at any zoom
